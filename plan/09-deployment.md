@@ -1,8 +1,12 @@
 # Step 9 — Deployment
 
-**Status:** ⬜ Not started — **contains one open decision**
+**Status:** 🟡 Repo side done — decision made (Option A: Vercel + Neon).
+Build script, pooled/direct URL split, `.env.example`, and
+[docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md) are committed. Nothing is
+provisioned yet: creating the Vercel project, adding the Neon integration, and
+setting the production environment variables still have to be done by hand.
 
-## ⚠️ Open decision: the production database
+## ✅ Decided: the production database — Option A (Vercel + Neon)
 
 [Step 2](02-database-and-prisma.md) set up Postgres on **your laptop** (`localhost:5432`, Homebrew, trust auth). That is right for development and **cannot serve a Vercel deployment** — Vercel's functions run in the cloud and cannot reach `localhost`, and the laptop isn't always on.
 
@@ -18,7 +22,7 @@ Local development keeps using local Postgres; only the deployed environment uses
 
 If the school already runs a server, host the app there next to Postgres. Teachers on the school network reach it directly. Removes the hosted-DB dependency and keeps data on-premises, but someone has to own uptime, backups, and TLS.
 
-**Option A is the recommendation**, but this is a school-infrastructure question as much as a technical one — confirm before provisioning anything.
+**Option A was chosen.** Local development keeps using local Postgres.
 
 ---
 

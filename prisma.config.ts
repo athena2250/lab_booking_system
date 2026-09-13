@@ -11,6 +11,11 @@ export default defineConfig({
   },
   engine: "classic",
   datasource: {
+    // This block overrides the schema's datasource for the migration engine.
     url: env("DATABASE_URL"),
+    // Neon hands out a pooled and an unpooled URL; migrations need the
+    // unpooled one. Locally there is no pooler, so both vars hold the same
+    // value — but the schema declares directUrl, so it must always be set.
+    directUrl: env("DIRECT_DATABASE_URL"),
   },
 });

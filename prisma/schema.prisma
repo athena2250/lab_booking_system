@@ -11,7 +11,13 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  // Pooled connection — every request handler goes through this. On Neon that
+  // is the "-pooler" host; serverless functions would otherwise exhaust
+  // Postgres' connection limit under any concurrency.
+  url       = env("DATABASE_URL")
+  // Unpooled — migrations only. A pooler can't run the DDL session state that
+  // `prisma migrate deploy` needs. Locally both point at the same database.
+  directUrl = env("DIRECT_DATABASE_URL")
 }
 
 model Booking {
