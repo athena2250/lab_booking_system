@@ -19,6 +19,7 @@ import { formatDateLong } from "@/lib/slots";
  * must be checked by someone who reads Kannada before go-live — ideally the
  * recipient. "ಅವಧಿ" for a school period in particular may be less natural than
  * the everyday transliteration "ಪೀರಿಯಡ್"; ask which they would rather read.
+ * Ask about the date order too — see `formatDateKannada` below.
  */
 
 const ENGLISH_LABELS = {
@@ -39,8 +40,11 @@ export const KANNADA_LABELS = {
   purpose: "ಉದ್ದೇಶ",
 } as const;
 
-/** "ಸೋಮವಾರ, 14 ಸೆಪ್ಟೆಂಬರ್ 2026" — Kannada weekday and month names.
- *  `timeZone: "UTC"` because dates are stored as UTC midnight (Step 2). */
+/** "ಸೋಮವಾರ, ಸೆಪ್ಟೆಂಬರ್ 14, 2026" — Kannada weekday and month names.
+ *  `timeZone: "UTC"` because dates are stored as UTC midnight (Step 2).
+ *  Note the order: ICU puts the month before the day for kn-IN, unlike the
+ *  English line above it in the message. That is ICU's locale data, not a bug
+ *  here — but it is one more thing to put to the native speaker in E4. */
 export function formatDateKannada(date: Date): string {
   return new Intl.DateTimeFormat("kn-IN", {
     weekday: "long",

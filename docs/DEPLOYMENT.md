@@ -97,8 +97,33 @@ Environment Variables for **Production**:
 Do not reuse the development `SESSION_SECRET`: it signs login cookies, and a
 leaked dev value would let anyone mint a valid session.
 
-Verify the credentials themselves — separately from the deploy — by pulling
-them down and running the Step 8 smoke test:
+You do not have to tick that list by hand. The build runs
+`scripts/check-env.mjs` first, which reads the key names out of `.env.example`
+and fails the deploy if a Production build is missing any of them — so a
+forgotten variable surfaces as a red build, not as an email that never arrives.
+It also catches the value-level mistakes that otherwise fail far from their
+cause: the pooled and unpooled database URLs the wrong way round, a
+`TWILIO_WHATSAPP_*` number that lost its `whatsapp:` prefix, a short
+`SESSION_SECRET`, a malformed address in `RECIPIENT_EMAILS`.
+
+To check an environment without deploying:
+
+```bash
+npm run check:env                      # uses your local .env
+vercel env pull .env.production.local --environment=production
+node --env-file=.env.production.local scripts/check-env.mjs --env=production
+```
+
+Note what it deliberately does **not** do: on Preview and development the
+notification variables are reported as warnings, never errors. Blank
+notification credentials on Preview are the recommended setup (see below), and
+failing the build on them would punish the safe configuration. Only
+`DATABASE_URL`, `DIRECT_DATABASE_URL`, `TEACHER_USERNAME`, `TEACHER_PASSWORD`
+and `SESSION_SECRET` are hard requirements everywhere — without those there is
+no database and no way to log in.
+
+The preflight only proves a value is *present and well-formed*. To prove the
+credentials are *live*, pull them down and run the Step 8 smoke test:
 
 ```bash
 vercel env pull .env.production.local
@@ -114,12 +139,15 @@ node --env-file=.env.production.local scripts/check-services.mjs         # actua
 vercel deploy --prod
 ```
 
-The build script runs three things, in order:
+The build script runs four things, in order:
 
 ```
-prisma generate && prisma migrate deploy && next build
+node scripts/check-env.mjs && prisma generate && prisma migrate deploy && next build
 ```
 
+- `check-env.mjs` — the preflight from §3. It runs *first*, and in particular
+  before `prisma migrate deploy`, so a half-configured deploy is rejected
+  before it touches the production database.
 - `prisma generate` — the client is generated into `app/generated/prisma/`,
   which is gitignored, so it does not exist in a fresh checkout. Without this
   step the build fails on a missing module. It also defeats Vercel's
@@ -161,7 +189,8 @@ Pick one before anyone opens a preview URL:
   URLs, and blank notification vars. Blank is safe: `lib/notify.ts` builds its
   clients per call, so a missing credential fails that one channel, gets
   logged, and leaves the booking itself successful. Nothing is sent, and
-  nothing crashes. Or
+  nothing crashes — and the §3 preflight passes blank notification vars on
+  Preview for exactly this reason. Or
 - Turn preview deployments off for this project.
 
 ## Routine deploys

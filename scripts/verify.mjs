@@ -30,7 +30,9 @@ import { execFile } from "node:child_process";
 import { once } from "node:events";
 import { promisify } from "node:util";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import os from "node:os";
+import fs from "node:fs/promises";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const execFileAsync = promisify(execFile);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -61,6 +63,7 @@ const D = {
   doubleClick: "2099-01-06",
   race: "2099-01-07",
   notify: "2099-01-08",
+  notifyCount: "2099-01-11",
 };
 
 // ------------------------------------------------------------------ results
@@ -657,6 +660,201 @@ async function sectionD(base, hasDb) {
   });
 }
 
+// ------------------------------------------------- the message modules, live
+//
+// E1 and E3 ask what the recipients actually SEE. Delivery needs a real inbox
+// and a real phone, but the content is decidable here — so it is checked
+// against the real `lib/messages.ts`, not a copy of it. The file is TypeScript
+// behind a `@/` alias, so it is transpiled to a scratch directory and
+// imported; nothing is sent and no server is involved.
+
+async function loadMessages() {
+  const out = await fs.mkdtemp(path.join(os.tmpdir(), "lab-verify-"));
+  const tsconfig = path.join(out, "tsconfig.json");
+  await fs.writeFile(
+    tsconfig,
+    JSON.stringify({
+      compilerOptions: {
+        target: "es2022",
+        module: "esnext",
+        moduleResolution: "bundler",
+        outDir: out,
+        skipLibCheck: true,
+        noEmitOnError: true,
+        baseUrl: ROOT,
+        paths: { "@/*": ["./*"] },
+      },
+      files: [path.join(ROOT, "lib", "messages.ts")],
+    }),
+  );
+
+  const tsc = path.join(ROOT, "node_modules", ".bin", "tsc");
+  try {
+    await execFileAsync(tsc, ["-p", tsconfig], { maxBuffer: 1 << 24 });
+  } catch (error) {
+    throw new Error(
+      `could not transpile lib/messages.ts: ${error.stdout || error.message}`,
+    );
+  }
+
+  // The emitted tree mirrors the repo, so the alias resolves to a sibling.
+  const entry = path.join(out, "lib", "messages.js");
+  const js = await fs.readFile(entry, "utf-8");
+  await fs.writeFile(entry, js.replace(/"@\/lib\/slots"/g, '"./slots.js"'));
+
+  const mod = await import(pathToFileURL(entry).href);
+  return { mod, cleanup: () => fs.rm(out, { recursive: true, force: true }) };
+}
+
+// Kannada block, U+0C80-U+0CFF. Tofu on the recipient's phone is E4's
+// question; that the codepoints are there at all is this one's.
+const KANNADA = /[ಀ-೿]/;
+
+/** A Booking row as lib/messages.ts sees it — the notification path reads
+ *  only these fields. */
+const sampleBooking = () => ({
+  id: "verify-sample",
+  date: new Date(`${D.notify}T00:00:00.000Z`),
+  period: 3,
+  teacherName: "Verification Script",
+  classSubject: "9A Physics",
+  purpose: "Step 10 verification",
+});
+
+async function sectionEContent() {
+  console.log("\nE. Notifications (message content)");
+
+  let loaded;
+  try {
+    loaded = await loadMessages();
+  } catch (error) {
+    await check("E1a/E3a", "The composed message can be read", () => {
+      throw error;
+    });
+    return;
+  }
+
+  const { englishMessage, kannadaMessage, bilingualMessage, emailSubject } =
+    loaded.mod;
+  const booking = sampleBooking();
+
+  try {
+    await check(
+      "E1a",
+      "The email subject carries the date and the period",
+      async () => {
+        const subject = emailSubject(booking);
+        // Formatted here rather than with lib/slots' own formatter: a check
+        // that reuses the code under test can only ever agree with it.
+        const date = new Intl.DateTimeFormat("en-IN", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+          timeZone: "UTC",
+        }).format(booking.date);
+        expect(
+          subject.includes(date),
+          `the subject does not name the date (${date}): ${subject}`,
+        );
+        expect(
+          new RegExp(`\\bPeriod ${booking.period}\\b`).test(subject),
+          `the subject does not name the period: ${subject}`,
+        );
+        expect(
+          !/Invalid Date|undefined|NaN/.test(subject),
+          `the subject has an unrendered value: ${subject}`,
+        );
+
+        return `"${subject}"`;
+      },
+    );
+
+    // "BOTH email recipients" is the other half of E1 a machine can reach: a
+    // message composed perfectly and addressed to one person still fails the
+    // row. Unconfigured is not the same as wrong — an unset RECIPIENT_EMAILS
+    // means Step 8 has not been provisioned yet, so it is reported as pending
+    // rather than failed. A configured-but-wrong list is a real failure.
+    const raw = process.env.RECIPIENT_EMAILS ?? "";
+    const recipients = [
+      ...new Set(
+        raw
+          .split(",")
+          .map((a) => a.trim().toLowerCase())
+          .filter(Boolean),
+      ),
+    ];
+
+    if (recipients.length === 0) {
+      manual(
+        "E1b",
+        "Two email recipients are configured",
+        "RECIPIENT_EMAILS is unset — external services (plan/08-external-services.md) " +
+          "are not provisioned, so E1-E4 cannot be attempted at all yet",
+      );
+      console.log(
+        "  ☐ E1b  Two email recipients are configured — RECIPIENT_EMAILS is unset",
+      );
+    } else {
+      await check("E1b", "Two email recipients are configured", async () => {
+        expect(
+          recipients.length >= 2,
+          `RECIPIENT_EMAILS names ${recipients.length} address; E1 expects two`,
+        );
+        expect(
+          recipients.every((a) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(a)),
+          `RECIPIENT_EMAILS contains a malformed address: ${raw}`,
+        );
+        return `${recipients.length} distinct recipients`;
+      });
+    }
+
+    await check(
+      "E3a",
+      "One WhatsApp body carries an English block then a Kannada block",
+      async () => {
+        const body = bilingualMessage(booking);
+        const english = englishMessage(booking);
+        const kannada = kannadaMessage(booking);
+
+        expect(body.includes(english), "the English block is missing");
+        expect(body.includes(kannada), "the Kannada block is missing");
+        expect(
+          body.indexOf(english) < body.indexOf(kannada),
+          "Kannada leads — English must come first (plan/07-notifications.md)",
+        );
+        expect(
+          !KANNADA.test(english),
+          "the English block contains Kannada characters",
+        );
+        expect(
+          KANNADA.test(kannada),
+          "the Kannada block has no Kannada characters — labels were lost",
+        );
+        expect(
+          !/Invalid Date|undefined|NaN/.test(body),
+          "the message has an unrendered value",
+        );
+
+        // The values the teacher typed must survive verbatim in both blocks —
+        // the no-translation-API decision only holds if nothing mangles them.
+        for (const value of [booking.teacherName, booking.classSubject, booking.purpose]) {
+          expect(
+            english.includes(value) && kannada.includes(value),
+            `"${value}" did not survive into both blocks`,
+          );
+        }
+
+        // Twilio sends one body; both languages must be inside it.
+        const kannadaChars = [...body].filter((c) => KANNADA.test(c)).length;
+        return `1 body, ${body.split("\n").length} lines, ${kannadaChars} Kannada chars, English first`;
+      },
+    );
+  } finally {
+    await loaded.cleanup();
+  }
+}
+
 async function sectionE(ctx, cookie) {
   console.log("\nE. Notifications");
 
@@ -692,6 +890,46 @@ async function sectionE(ctx, cookie) {
       "the booking was reported but not stored",
     );
     return "201, notified=false, both failures logged, slot held";
+  });
+
+  // E2 asks for EXACTLY one WhatsApp message per booking. Whether it lands on
+  // the recipient's phone is manual; how many times the app tries is not.
+  // With the credentials blanked every attempt fails loudly, which turns the
+  // server log into an exact count of attempts.
+  await check("E2a", "One booking makes exactly one WhatsApp attempt", async () => {
+    // Counted by splitting rather than by regex: the booking id is a cuid and
+    // the channel name is fixed, so a literal suffix is exact and unescapable.
+    const countAttempts = (log, channel) =>
+      log.split(` ${channel} failed`).length - 1;
+
+    const at = ctx.mark();
+    const res = await postBooking(ctx.base, cookie, bookingBody(D.notifyCount, 1));
+    expectStatus(res, 201, "booking");
+    const first = ctx.since(at);
+    expect(
+      countAttempts(first, "WhatsApp") === 1,
+      `one booking made ${countAttempts(first, "WhatsApp")} WhatsApp attempts`,
+    );
+    expect(
+      countAttempts(first, "email") === 1,
+      `one booking made ${countAttempts(first, "email")} email sends`,
+    );
+
+    // The duplicate half: a teacher who submits the same slot twice must not
+    // make the recipient's phone buzz twice. The 409 path must notify nobody.
+    const dupeAt = ctx.mark();
+    const dupe = await postBooking(ctx.base, cookie, bookingBody(D.notifyCount, 1));
+    expectStatus(dupe, 409, "duplicate booking");
+    const after = ctx.since(dupeAt);
+    expect(
+      countAttempts(after, "WhatsApp") === 0,
+      "the rejected duplicate still sent a WhatsApp message",
+    );
+    expect(
+      countAttempts(after, "email") === 0,
+      "the rejected duplicate still sent an email",
+    );
+    return "1 WhatsApp + 1 email per booking; the 409 sent nothing";
   });
 }
 
@@ -754,12 +992,12 @@ async function sectionELive() {
 // ------------------------------------------------------------------- report
 
 function reportManual() {
-  manual("E1", "Both email recipients receive it, date + period in the subject",
-    "needs a real inbox — run with real credentials and look");
-  manual("E2", "Recipient receives exactly one WhatsApp message",
-    "needs the recipient's phone");
-  manual("E3", "The WhatsApp message contains an English and a Kannada block",
-    "lib/messages.ts composes both; confirm on the delivered message");
+  manual("E1", "Both email recipients actually receive it",
+    "E1a/E1b checked the subject and the recipient list — delivery needs a real inbox");
+  manual("E2", "The message arrives on the recipient's phone, once",
+    "E2a checked the app sends exactly one — arrival needs the phone");
+  manual("E3", "Both blocks survive WhatsApp's own rendering",
+    "E3a checked the composed body carries English then Kannada");
   manual("E4", "The recipient reads it on their phone: Kannada renders, wording is natural",
     "only the person it was built for can answer this — see plan/07-notifications.md");
   manual("F1", "Phone at ~400px: no horizontal scroll, radios comfortably tappable",
@@ -804,6 +1042,30 @@ async function main() {
     process.exit(1);
   }
 
+  // --live-notifications breaks ONE credential and expects the other channel
+  // to deliver. With the credentials absent entirely both channels fail and
+  // the run reports a confusing "the working channel failed too". Say so up
+  // front instead.
+  if (LIVE_NOTIFICATIONS) {
+    const unset = [
+      "GMAIL_USER",
+      "GMAIL_APP_PASSWORD",
+      "RECIPIENT_EMAILS",
+      "TWILIO_ACCOUNT_SID",
+      "TWILIO_AUTH_TOKEN",
+      "TWILIO_WHATSAPP_FROM",
+      "TWILIO_WHATSAPP_TO",
+    ].filter((name) => !process.env[name]);
+    if (unset.length) {
+      console.error(
+        `Cannot run --live-notifications: ${unset.join(", ")} not set.\n` +
+          "  Provision the external services first (plan/08-external-services.md),\n" +
+          "  then confirm them with `npm run check:services`.",
+      );
+      process.exit(1);
+    }
+  }
+
   const hasDb = await dbAvailable();
   if (!hasDb) {
     console.warn(
@@ -833,6 +1095,8 @@ async function main() {
     if (EXTERNAL_BASE) {
       manual("E5/E6", "Booking survives broken notification credentials",
         "cannot break a remote server's credentials from here — run locally");
+      manual("E2a", "One booking makes exactly one WhatsApp attempt",
+        "counted from the server's own log — run locally");
     } else {
       await sectionE(ctx, cookie);
     }
@@ -844,6 +1108,10 @@ async function main() {
     await withServer(NOTIFICATIONS_OFF, run);
     if (LIVE_NOTIFICATIONS) await sectionELive();
   }
+
+  // Pure composition: no server, no database, nothing sent — so it runs in
+  // every mode, including against a deployment.
+  await sectionEContent();
 
   if (hasDb) await clearScratch();
 

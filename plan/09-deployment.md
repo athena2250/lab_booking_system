@@ -1,10 +1,16 @@
 # Step 9 — Deployment
 
-**Status:** 🟡 Repo side done — decision made (Option A: Vercel + Neon).
-Build script, pooled/direct URL split, `.env.example`, and
-[docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md) are committed. Nothing is
-provisioned yet: creating the Vercel project, adding the Neon integration, and
-setting the production environment variables still have to be done by hand.
+**Status:** 🟡 Repo side complete — decision made (Option A: Vercel + Neon).
+Build script, pooled/direct URL split, `.env.example`, the environment
+preflight (`scripts/check-env.mjs`, wired into `build`), and
+[docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md) are committed, and `npm run build`
+passes clean with no middleware-deprecation warning.
+
+Nothing is **provisioned** yet, and that part cannot be done from the repo:
+creating the Vercel project, adding the Neon integration, and setting the
+production environment variables each need an authenticated Vercel account.
+Run [docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md) §1–§4 to do them; the
+post-deploy checklist below is the acceptance test.
 
 ## ✅ Decided: the production database — Option A (Vercel + Neon)
 
@@ -65,10 +71,10 @@ npx prisma migrate deploy
 Either as a one-off against the production `DIRECT_DATABASE_URL`, or wired into the build:
 
 ```json
-"build": "prisma generate && prisma migrate deploy && next build"
+"build": "node scripts/check-env.mjs && prisma generate && prisma migrate deploy && next build"
 ```
 
-Migrating in the build is convenient and fine at this scale; be aware it means a failed migration fails the deploy, which is usually the behaviour you want.
+Migrating in the build is convenient and fine at this scale; be aware it means a failed migration fails the deploy, which is usually the behaviour you want. The env preflight runs ahead of the migration deliberately, so a misconfigured deploy is rejected before it writes anything.
 
 ## Deploy
 
@@ -77,7 +83,13 @@ Migrating in the build is convenient and fine at this scale; be aware it means a
 3. Set **every** var from [Step 8](08-external-services.md)'s `.env.example` in Project Settings → Environment Variables, for Production (and Preview if used).
 4. Deploy, then run/verify migrations against the production database.
 
-**Vercel does not read your local `.env`** — a missing var surfaces as a runtime crash in a function, not a build error. Check the full list before the first real booking.
+**Vercel does not read your local `.env`** — a missing var would otherwise surface as a runtime crash in a function, not a build error.
+
+That is now enforced rather than remembered. `scripts/check-env.mjs` runs as the first step of `build`: it reads the key names from `.env.example` (so the list cannot drift from the app) and fails a Production build that is missing any of them, before `prisma migrate deploy` touches the database. It also rejects the pooled/unpooled URLs swapped, a `whatsapp:` prefix dropped, and a weak `SESSION_SECRET`.
+
+On Preview and locally the notification vars are warnings, not errors — blank ones there are the recommended setup, not a mistake. Standalone: `npm run check:env`.
+
+It checks that values are present and well-formed, not that they work; `npm run check:services` is what proves the credentials are live.
 
 ## Preview deployments
 
