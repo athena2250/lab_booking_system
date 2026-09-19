@@ -13,6 +13,13 @@ export async function proxy(req: NextRequest) {
 }
 
 // `/login` and `/api/login` stay outside the matcher, or the redirect loops.
+// `/` is the public overview page and stays outside it too.
 export const config = {
-  matcher: ["/book/:path*", "/api/bookings/:path*", "/api/availability/:path*"],
+  matcher: [
+    "/book/:path*",
+    "/availability/:path*",
+    "/bookings/:path*",
+    "/api/bookings/:path*",
+    "/api/availability/:path*",
+  ],
 };

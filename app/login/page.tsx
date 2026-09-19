@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 
+const FIELD =
+  "bg-field border-edge-strong text-fg w-full rounded-[10px] border px-3.5 py-3.5 text-[15px] outline-none focus:border-accent";
+
 export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -21,8 +24,9 @@ export default function LoginPage() {
       });
 
       if (res.ok) {
-        // Full navigation so the new cookie is sent with the request for /book.
-        window.location.replace("/book");
+        // Full navigation so the new cookie is sent with the request for the
+        // availability page, and so the header re-renders as signed in.
+        window.location.replace("/availability");
         return;
       }
 
@@ -36,45 +40,59 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex flex-1 items-center justify-center px-6 py-16">
-      <div className="w-full max-w-sm">
-        <h1 className="text-2xl font-semibold tracking-tight">Lab Booking</h1>
-        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-          Sign in with the shared staff room login.
+    <main className="grid flex-1 place-items-center px-6 py-15">
+      <div className="border-edge bg-surface w-full max-w-[420px] rounded-[18px] border p-9">
+        <span className="bg-accent text-ink font-display mb-6 grid size-[38px] place-items-center rounded-[10px] text-[19px] font-bold">
+          L
+        </span>
+        <h1 className="font-display m-0 mb-2 text-2xl font-semibold tracking-[-0.02em]">
+          Staff room sign in
+        </h1>
+        <p className="text-muted-3 m-0 mb-7 text-[14.5px] leading-[1.55]">
+          One shared login for the staff room. The session lasts twelve hours —
+          one school day.
         </p>
 
-        <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-4">
-          <label className="flex flex-col gap-1.5 text-sm font-medium">
+        <form onSubmit={handleSubmit}>
+          <label
+            htmlFor="username"
+            className="text-muted mb-2 block text-[13px]"
+          >
             Username
-            <input
-              type="text"
-              name="username"
-              autoComplete="username"
-              required
-              autoFocus
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-base font-normal outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-zinc-300"
-            />
           </label>
+          <input
+            id="username"
+            type="text"
+            name="username"
+            autoComplete="username"
+            required
+            autoFocus
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            className={`${FIELD} mb-[18px]`}
+          />
 
-          <label className="flex flex-col gap-1.5 text-sm font-medium">
-            Password
-            <input
-              type="password"
-              name="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-base font-normal outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-zinc-300"
-            />
+          <label
+            htmlFor="password"
+            className="text-muted mb-2 block text-[13px]"
+          >
+            Passcode
           </label>
+          <input
+            id="password"
+            type="password"
+            name="password"
+            autoComplete="current-password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className={`${FIELD} mb-[18px]`}
+          />
 
           {error && (
             <p
               role="alert"
-              className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300"
+              className="text-accent-3 mb-[18px] rounded-[10px] border border-[rgba(255,90,54,0.35)] bg-[rgba(255,90,54,0.08)] px-3.5 py-3 text-sm"
             >
               {error}
             </p>
@@ -83,12 +101,16 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="mt-2 h-11 rounded-md bg-zinc-900 px-4 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-300"
+            className="bg-accent text-ink w-full cursor-pointer rounded-[10px] py-3.5 text-[15px] font-semibold disabled:opacity-60"
           >
             {submitting ? "Signing in…" : "Sign in"}
           </button>
         </form>
+
+        <p className="text-muted-3 mt-5 mb-0 text-[12.5px] leading-[1.5]">
+          Ask the lab in-charge or the staff room noticeboard for the passcode.
+        </p>
       </div>
-    </div>
+    </main>
   );
 }

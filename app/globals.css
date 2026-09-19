@@ -1,26 +1,62 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* Palette, type scale and radii lifted from the Lab Booking design file. The
+   design is dark-only by intent — a school staff room projector and a phone in
+   a lab both read this better than a light theme, and half-converting it would
+   leave the accent orange failing contrast on white. */
+@theme {
+  --color-ink: #09090b;
+  --color-ink-2: #0c0c0e;
+  --color-surface: #111114;
+  --color-field: #0b0b0d;
+
+  --color-line: #1c1c20;
+  --color-edge: #232327;
+  --color-edge-strong: #2a2a2f;
+
+  --color-fg: #f4f4f5;
+  --color-fg-2: #d4d4d8;
+  --color-muted: #a1a1aa;
+  --color-muted-2: #9a9aa2;
+  --color-muted-3: #8b8b93;
+  --color-faint: #5b5b63;
+
+  --color-accent: #ff5a36;
+  --color-accent-2: #ff7a5c;
+  --color-accent-3: #ff8a6e;
+  --color-ok: #3ecf8e;
+
+  --font-sans: var(--font-dm-sans), system-ui, sans-serif;
+  --font-display: var(--font-space-grotesk), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+html,
+body {
+  background: var(--color-ink);
+  color: var(--color-fg);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* The date inputs are native controls; without this their picker glyph and
+   dropdown render as black-on-black. */
+input[type="date"] {
+  color-scheme: dark;
+}
+
+input::placeholder {
+  color: var(--color-faint);
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.animate-pulse-dot {
+  animation: pulse-dot 2.4s ease-in-out infinite;
 }

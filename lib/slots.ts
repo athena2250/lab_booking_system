@@ -27,3 +27,29 @@ export function formatDateLong(date: Date): string {
     timeZone: "UTC",
   }).format(date);
 }
+
+/** Today in school-local time, as an input[type=date] value. `toISOString()`
+ *  is UTC and would read as yesterday before 05:30 IST. */
+export function todayInSchoolTz(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+  }).format(new Date());
+}
+
+/** "2026-09-21" -> "Monday, 21 September 2026". Falls back to the raw value
+ *  for anything malformed, so a half-typed date never blanks the heading. */
+export function formatDateOnlyLong(input: string): string {
+  const date = parseDateOnly(input);
+  return date ? formatDateLong(date) : input;
+}
+
+/** For dense lists: "21 Sep 2026". The stored date is UTC midnight, so it must
+ *  be read back in UTC or it shifts a day either side of the date line. */
+export function formatDateShort(date: Date): string {
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+}

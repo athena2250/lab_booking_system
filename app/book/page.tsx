@@ -1,118 +1,67 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import { formatDateOnlyLong, todayInSchoolTz } from "@/lib/slots";
+import {
+  placeholderSlots,
+  useAvailability,
+} from "@/app/components/use-availability";
 
-type Slot = {
-  period: number;
-  booked: boolean;
-  bookedBy: string | null;
-  classSubject: string | null;
-};
+const FIELD =
+  "bg-field border-edge-strong text-fg focus:border-accent w-full rounded-[10px] border px-3.5 py-3.5 text-[15px] outline-none";
+const LABEL = "text-muted mb-2 block text-[13px]";
+const PRIMARY =
+  "bg-accent text-ink cursor-pointer rounded-[10px] text-[15px] font-semibold disabled:opacity-60";
+const SECONDARY =
+  "border-edge-strong text-fg cursor-pointer rounded-[10px] border px-5 py-3.5 text-[14.5px] font-medium no-underline";
 
-/** Today in school-local time. `toISOString()` is UTC and would read as
- *  yesterday before 05:30 IST. */
-function today(): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Kolkata",
-  }).format(new Date());
-}
-
-type Result = { key: string; slots: Slot[] | null; error: string | null };
-
-type Status =
-  | { kind: "success"; message: string }
-  | { kind: "error"; message: string }
+/** What the last submit produced. The form, the receipt and the clash notice
+ *  are the same route rather than three — the teacher never navigates away
+ *  from a booking they are still in the middle of making. */
+type Outcome =
+  | { kind: "confirmed"; date: string; period: number; teacherName: string; classSubject: string; notified: boolean }
+  | { kind: "clash"; date: string; period: number }
   | null;
 
 export default function BookPage() {
   const router = useRouter();
-  const [date, setDate] = useState(today);
+  const [date, setDate] = useState(todayInSchoolTz);
   const [teacherName, setTeacherName] = useState("");
   const [classSubject, setClassSubject] = useState("");
   const [purpose, setPurpose] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [status, setStatus] = useState<Status>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [outcome, setOutcome] = useState<Outcome>(null);
 
-  // Bumping this refetches the current date; changing the date does the same.
-  // Together they form the key every fetched result is stamped with.
-  const [reloadToken, setReloadToken] = useState(0);
-  const key = `${date}#${reloadToken}`;
+  const { slots, error: loadError, loading, reload } = useAvailability(date);
 
-  const [result, setResult] = useState<Result | null>(null);
+  // The chosen period is stamped with the date it belongs to, so a pick made
+  // for one date can never be submitted against another.
   const [pick, setPick] = useState<{ date: string; period: number } | null>(
     null,
   );
-
-  useEffect(() => {
-    let active = true;
-
-    void (async () => {
-      try {
-        const res = await fetch(`/api/availability?date=${date}`, {
-          cache: "no-store",
-        });
-        if (!active) return;
-        if (res.status === 401) {
-          router.replace("/login");
-          return;
-        }
-        if (!res.ok) throw new Error(String(res.status));
-
-        const data = (await res.json()) as { slots: Slot[] };
-        if (active) setResult({ key, slots: data.slots, error: null });
-      } catch {
-        if (active) {
-          setResult({
-            key,
-            slots: null,
-            error: "Could not load availability. Check your connection.",
-          });
-        }
-      }
-    })();
-
-    // A response for a superseded key must never paint itself over the current
-    // one — that stale-data window is the whole reason this page exists.
-    return () => {
-      active = false;
-    };
-  }, [date, key, router]);
-
-  const reload = useCallback(() => setReloadToken((n) => n + 1), []);
-
-  // Availability and the chosen period are each stamped with the date they
-  // belong to, so nothing from one date can be read while another is showing.
-  const current = result?.key === key ? result : null;
-  const slots = current?.slots ?? null;
-  const loadError = current?.error ?? null;
   const period = pick?.date === date ? pick.period : null;
-  const loading = current === null;
   const selected = slots?.find((s) => s.period === period) ?? null;
+
+  function changeDate(next: string) {
+    setError(null);
+    setOutcome(null);
+    setDate(next);
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submitting) return;
 
     // Client-side checks are a courtesy to the teacher; the server revalidates.
-    if (period === null) {
-      setStatus({ kind: "error", message: "Pick a period first." });
-      return;
-    }
-    if (selected?.booked) {
-      setStatus({ kind: "error", message: "That period is already booked." });
-      return;
-    }
-    if (!teacherName.trim()) {
-      setStatus({ kind: "error", message: "Your name is required." });
-      return;
-    }
-    if (!classSubject.trim()) {
-      setStatus({ kind: "error", message: "Class/subject is required." });
-      return;
-    }
+    if (period === null) return setError("Pick a period first.");
+    if (selected?.booked) return setError("That period is already booked.");
+    if (!teacherName.trim()) return setError("Your name is required.");
+    if (!classSubject.trim()) return setError("Class/subject is required.");
 
-    setStatus(null);
+    setError(null);
     setSubmitting(true);
 
     try {
@@ -136,14 +85,13 @@ export default function BookPage() {
       const body = await res.json().catch(() => null);
 
       if (res.status === 201) {
-        // The slot is reserved either way; only the notification can have
-        // failed. Say so rather than letting the lab in-charge be missed.
-        setStatus({
-          kind: "success",
-          message:
-            body?.notified === false
-              ? `Booked Period ${period} on ${date}, but the notification could not be sent \u2014 please inform the lab in-charge.`
-              : `Booked Period ${period} on ${date}.`,
+        setOutcome({
+          kind: "confirmed",
+          date,
+          period,
+          teacherName: teacherName.trim(),
+          classSubject: classSubject.trim(),
+          notified: body?.notified !== false,
         });
         // Keep the name — one teacher often books several slots in a row.
         setPick(null);
@@ -154,184 +102,351 @@ export default function BookPage() {
       }
 
       if (res.status === 409) {
-        setStatus({
-          kind: "error",
-          message: `Period ${period} just got booked by someone else.`,
-        });
+        setOutcome({ kind: "clash", date, period });
         setPick(null);
         reload();
         return;
       }
 
-      setStatus({
-        kind: "error",
-        message: body?.error ?? "Could not book that slot. Try again.",
-      });
+      setError(body?.error ?? "Could not book that slot. Try again.");
     } catch {
-      setStatus({
-        kind: "error",
-        message: "Network error. Check your connection and try again.",
-      });
+      setError("Network error. Check your connection and try again.");
     } finally {
       setSubmitting(false);
     }
   }
 
+  if (outcome?.kind === "confirmed") {
+    return (
+      <Confirmed outcome={outcome} onBookAnother={() => setOutcome(null)} />
+    );
+  }
+
+  if (outcome?.kind === "clash") {
+    // Whoever won the race is in the availability we refetched on the 409.
+    const holder = slots?.find((s) => s.period === outcome.period);
+    return (
+      <Clash
+        outcome={outcome}
+        heldBy={
+          holder?.booked
+            ? [holder.bookedBy, holder.classSubject].filter(Boolean).join(" — ")
+            : null
+        }
+        onPickAnother={() => setOutcome(null)}
+      />
+    );
+  }
+
+  const shown = slots ?? placeholderSlots();
+
   return (
-    <div className="flex flex-1 justify-center px-4 py-10 sm:px-6">
-      <div className="w-full max-w-xl">
-        <h1 className="text-2xl font-semibold tracking-tight">Lab Booking</h1>
-        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-          Pick a date and a free period. Booked periods show who has them.
+    <main className="mx-auto grid w-full max-w-[1180px] grid-cols-[repeat(auto-fit,minmax(min(100%,320px),1fr))] items-start gap-6 px-6 pt-9 pb-25">
+      <form
+        onSubmit={handleSubmit}
+        className="border-edge bg-surface rounded-[18px] border p-7.5"
+      >
+        <h1 className="font-display m-0 mb-1.5 text-2xl font-semibold tracking-[-0.02em]">
+          Book the lab
+        </h1>
+        <p className="text-muted-3 m-0 mb-6.5 text-[14.5px]">
+          Pick a date, then a free period. Taken periods can&rsquo;t be
+          selected.
         </p>
 
-        <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-6">
-          <label className="flex flex-col gap-1.5 text-sm font-medium">
-            Date
-            <input
-              type="date"
-              name="date"
-              required
-              value={date}
-              min={today()}
-              onChange={(e) => {
-                setStatus(null);
-                setDate(e.target.value);
-              }}
-              className="rounded-md border border-zinc-300 bg-white px-3 py-2.5 text-base font-normal outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-zinc-300"
-            />
-          </label>
+        <label htmlFor="date" className={LABEL}>
+          Date
+        </label>
+        <input
+          id="date"
+          type="date"
+          name="date"
+          required
+          value={date}
+          min={todayInSchoolTz()}
+          onChange={(e) => changeDate(e.target.value)}
+          className={`${FIELD} mb-5.5`}
+        />
 
-          <fieldset disabled={loading} className="flex flex-col gap-1.5">
-            <legend className="text-sm font-medium">Period</legend>
+        <fieldset disabled={loading} className="m-0 border-0 p-0">
+          <legend className={LABEL}>Period</legend>
 
-            {loadError && (
-              <p
-                role="alert"
-                className="mt-1 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300"
+          {loadError && (
+            <p
+              role="alert"
+              className="text-accent-3 mb-2.5 rounded-[10px] border border-[rgba(255,90,54,0.35)] bg-[rgba(255,90,54,0.08)] px-3.5 py-3 text-sm"
+            >
+              {loadError}{" "}
+              <button
+                type="button"
+                onClick={reload}
+                className="cursor-pointer font-semibold underline"
               >
-                {loadError}{" "}
-                <button
-                  type="button"
-                  onClick={reload}
-                  className="font-medium underline"
-                >
-                  Retry
-                </button>
-              </p>
-            )}
+                Retry
+              </button>
+            </p>
+          )}
 
-            <div className="mt-1 flex flex-col divide-y divide-zinc-200 rounded-md border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
-              {(slots ?? placeholderSlots()).map((slot) => {
-                const disabled = loading || slot.booked;
-                return (
-                  <label
-                    key={slot.period}
-                    className={`flex min-h-12 items-center gap-3 px-3 py-3 text-base ${
-                      disabled
-                        ? "cursor-not-allowed bg-zinc-50 text-zinc-500 dark:bg-zinc-900 dark:text-zinc-500"
-                        : "cursor-pointer"
-                    }`}
-                  >
+          <div className="mb-5.5 flex flex-col gap-2">
+            {shown.map((slot) => {
+              const isSelected = period === slot.period;
+              const disabled = loading || slot.booked;
+              return (
+                <label
+                  key={slot.period}
+                  className={`bg-field flex w-full items-center justify-between gap-3 rounded-[10px] border px-3.5 py-3 text-left ${
+                    isSelected
+                      ? "border-accent bg-[rgba(255,90,54,0.08)]"
+                      : "border-edge"
+                  } ${
+                    disabled
+                      ? "text-muted-3 cursor-not-allowed"
+                      : "text-fg cursor-pointer"
+                  }`}
+                >
+                  <span className="flex items-center gap-3">
                     <input
                       type="radio"
                       name="period"
                       value={slot.period}
-                      checked={period === slot.period}
+                      checked={isSelected}
                       disabled={disabled}
                       onChange={() => {
                         setPick({ date, period: slot.period });
-                        setStatus(null);
+                        setError(null);
                       }}
-                      className="h-5 w-5 accent-zinc-900 dark:accent-zinc-100"
+                      className="accent-accent size-[15px] shrink-0"
                     />
-                    <span className="font-medium">Period {slot.period}</span>
-                    {slot.booked && slot.bookedBy && (
-                      <span className="ml-auto text-right text-sm">
-                        booked by {slot.bookedBy}
-                      </span>
-                    )}
-                  </label>
-                );
-              })}
-            </div>
+                    <span className="text-[14.5px] font-medium">
+                      Period {slot.period}
+                    </span>
+                  </span>
+                  <span
+                    className={`text-[12.5px] ${
+                      slot.booked ? "text-muted-3" : "text-ok"
+                    }`}
+                  >
+                    {loading ? "…" : slot.booked ? (slot.bookedBy ?? "Taken") : "Free"}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
 
-            {loading && (
-              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                Loading availability…
-              </p>
-            )}
-          </fieldset>
+        <label htmlFor="teacherName" className={LABEL}>
+          Teacher
+        </label>
+        <input
+          id="teacherName"
+          type="text"
+          name="teacherName"
+          autoComplete="name"
+          required
+          placeholder="Your name"
+          value={teacherName}
+          onChange={(e) => setTeacherName(e.target.value)}
+          className={`${FIELD} mb-4`}
+        />
 
-          <label className="flex flex-col gap-1.5 text-sm font-medium">
-            Teacher name
-            <input
-              type="text"
-              name="teacherName"
-              autoComplete="name"
-              required
-              value={teacherName}
-              onChange={(e) => setTeacherName(e.target.value)}
-              className="rounded-md border border-zinc-300 bg-white px-3 py-2.5 text-base font-normal outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-zinc-300"
-            />
-          </label>
+        <label htmlFor="classSubject" className={LABEL}>
+          Class &amp; subject
+        </label>
+        <input
+          id="classSubject"
+          type="text"
+          name="classSubject"
+          required
+          placeholder="e.g. 9B — acids and bases"
+          value={classSubject}
+          onChange={(e) => setClassSubject(e.target.value)}
+          className={`${FIELD} mb-4`}
+        />
 
-          <label className="flex flex-col gap-1.5 text-sm font-medium">
-            Class/Subject
-            <input
-              type="text"
-              name="classSubject"
-              required
-              value={classSubject}
-              onChange={(e) => setClassSubject(e.target.value)}
-              className="rounded-md border border-zinc-300 bg-white px-3 py-2.5 text-base font-normal outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-zinc-300"
-            />
-          </label>
+        <label htmlFor="purpose" className={LABEL}>
+          Purpose <span className="text-muted-3">(optional)</span>
+        </label>
+        <input
+          id="purpose"
+          type="text"
+          name="purpose"
+          placeholder="e.g. practical, needs the fume hood"
+          value={purpose}
+          onChange={(e) => setPurpose(e.target.value)}
+          className={`${FIELD} mb-6`}
+        />
 
-          <label className="flex flex-col gap-1.5 text-sm font-medium">
-            Purpose{" "}
-            <span className="font-normal text-zinc-500">(optional)</span>
-            <input
-              type="text"
-              name="purpose"
-              value={purpose}
-              onChange={(e) => setPurpose(e.target.value)}
-              className="rounded-md border border-zinc-300 bg-white px-3 py-2.5 text-base font-normal outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-zinc-300"
-            />
-          </label>
-
-          {status && (
-            <p
-              role="alert"
-              className={`rounded-md px-3 py-2 text-sm ${
-                status.kind === "success"
-                  ? "bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-300"
-                  : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
-              }`}
-            >
-              {status.message}
-            </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={submitting || loading}
-            className="h-12 rounded-md bg-zinc-900 px-4 text-base font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-300"
+        {error && (
+          <p
+            role="alert"
+            className="text-accent-3 mb-4 rounded-[10px] border border-[rgba(255,90,54,0.35)] bg-[rgba(255,90,54,0.08)] px-3.5 py-3 text-sm"
           >
-            {submitting ? "Booking…" : "Book slot"}
-          </button>
-        </form>
-      </div>
-    </div>
+            {error}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          disabled={submitting || loading}
+          className={`${PRIMARY} w-full py-3.5`}
+        >
+          {submitting ? "Booking…" : "Confirm booking"}
+        </button>
+      </form>
+
+      <aside className="border-edge bg-ink-2 rounded-[18px] border p-7.5">
+        <h2 className="text-muted-2 m-0 mb-4.5 text-xs tracking-[0.14em] uppercase">
+          On confirm
+        </h2>
+        <ul className="m-0 flex list-none flex-col gap-4 p-0">
+          {[
+            ["Principal — email", "English"],
+            ["Science HOD — email", "English"],
+            [
+              "Lab in-charge — WhatsApp",
+              "English and Kannada, from a fixed template",
+            ],
+          ].map(([who, how]) => (
+            <li key={who} className="grid grid-cols-[auto_1fr] items-start gap-3.5">
+              <span className="bg-accent mt-[7px] size-2 rounded-full" />
+              <span>
+                <span className="block text-[14.5px] font-semibold">{who}</span>
+                <span className="text-muted-3 block text-[13.5px] leading-[1.5]">
+                  {how}
+                </span>
+              </span>
+            </li>
+          ))}
+        </ul>
+        <p className="border-line text-muted-2 mt-6 border-t pt-5 text-[13px] leading-[1.55]">
+          A failed notification never fails the booking. The slot is already
+          committed by then.
+        </p>
+      </aside>
+    </main>
   );
 }
 
-/** Keeps the list at a stable 8 rows while availability is in flight. */
-function placeholderSlots(): Slot[] {
-  return Array.from({ length: 8 }, (_, i) => ({
-    period: i + 1,
-    booked: false,
-    bookedBy: null,
-    classSubject: null,
-  }));
+function Confirmed({
+  outcome,
+  onBookAnother,
+}: {
+  outcome: Extract<Outcome, { kind: "confirmed" }>;
+  onBookAnother: () => void;
+}) {
+  return (
+    <main className="grid flex-1 place-items-center px-6 py-10">
+      <div className="border-edge bg-surface w-full max-w-[520px] rounded-[18px] border p-9">
+        <span className="text-ok mb-5.5 grid size-11 place-items-center rounded-xl border border-[rgba(62,207,142,0.35)] bg-[rgba(62,207,142,0.14)] text-xl">
+          ✓
+        </span>
+        <h1 className="font-display m-0 mb-2 text-[25px] font-semibold tracking-[-0.02em]">
+          Lab booked
+        </h1>
+        <p className="text-muted-3 m-0 mb-6.5 text-[14.5px]">
+          The slot is held. Nobody else can take it.
+        </p>
+
+        <dl className="border-edge m-0 overflow-hidden rounded-xl border">
+          {[
+            ["Date", formatDateOnlyLong(outcome.date)],
+            ["Period", `Period ${outcome.period}`],
+            ["Teacher", outcome.teacherName],
+            ["Class", outcome.classSubject],
+          ].map(([label, value], i, all) => (
+            <div
+              key={label}
+              className={`flex justify-between gap-4 px-4 py-3.5 ${
+                i === all.length - 1 ? "" : "border-line border-b"
+              }`}
+            >
+              <dt className="text-muted-3 text-sm">{label}</dt>
+              <dd className="m-0 text-right text-sm font-medium">{value}</dd>
+            </div>
+          ))}
+        </dl>
+
+        {outcome.notified ? (
+          <div className="mt-5 flex flex-wrap gap-2">
+            <span className="border-edge text-muted rounded-[7px] border px-2.5 py-1.5 text-[12.5px]">
+              2 emails sent
+            </span>
+            <span className="border-edge text-muted rounded-[7px] border px-2.5 py-1.5 text-[12.5px]">
+              WhatsApp sent · EN + KN
+            </span>
+          </div>
+        ) : (
+          // The slot is reserved either way; only the notification failed. Say
+          // so rather than letting the lab in-charge be silently missed.
+          <p
+            role="alert"
+            className="text-accent-3 mt-5 rounded-[10px] border border-[rgba(255,90,54,0.35)] bg-[rgba(255,90,54,0.08)] px-3.5 py-3 text-sm"
+          >
+            The booking is held, but a notification could not be sent — please
+            tell the lab in-charge yourself.
+          </p>
+        )}
+
+        <div className="mt-6.5 flex flex-wrap gap-2.5">
+          <Link href="/availability" className={`${PRIMARY} px-5 py-3.5 no-underline`}>
+            Back to availability
+          </Link>
+          <button type="button" onClick={onBookAnother} className={SECONDARY}>
+            Book another period
+          </button>
+          <Link href="/bookings" className={SECONDARY}>
+            See all bookings
+          </Link>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+function Clash({
+  outcome,
+  heldBy,
+  onPickAnother,
+}: {
+  outcome: Extract<Outcome, { kind: "clash" }>;
+  heldBy: string | null;
+  onPickAnother: () => void;
+}) {
+  return (
+    <main className="grid flex-1 place-items-center px-6 py-10">
+      <div className="w-full max-w-[520px] rounded-[18px] border border-[rgba(255,90,54,0.35)] bg-[#141012] p-9">
+        <span className="text-accent mb-5.5 grid size-11 place-items-center rounded-xl border border-[rgba(255,90,54,0.4)] bg-[rgba(255,90,54,0.14)] text-xl">
+          !
+        </span>
+        <h1 className="font-display m-0 mb-2 text-[25px] font-semibold tracking-[-0.02em]">
+          That period was just taken
+        </h1>
+        <p className="text-muted m-0 mb-6 text-[15px] leading-[1.6] text-pretty">
+          Someone confirmed Period {outcome.period} on{" "}
+          {formatDateOnlyLong(outcome.date)} a few seconds before you. Nothing
+          was booked for you and nobody was notified.
+        </p>
+
+        {heldBy && (
+          <div className="mb-6 rounded-xl border border-[#2a2126] p-4">
+            <p className="text-muted-3 m-0 mb-1.5 text-[13px]">Now held by</p>
+            <p className="m-0 text-[15px] font-semibold">{heldBy}</p>
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-2.5">
+          <button
+            type="button"
+            onClick={onPickAnother}
+            className={`${PRIMARY} px-5 py-3.5`}
+          >
+            Pick another period
+          </button>
+          <Link href="/availability" className={SECONDARY}>
+            See what&rsquo;s free
+          </Link>
+        </div>
+      </div>
+    </main>
+  );
 }
