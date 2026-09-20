@@ -5,7 +5,12 @@ import type {
   DeliveryStatus,
 } from "@/app/generated/prisma/client";
 import { prisma } from "@/lib/db";
-import { bilingualMessage, emailSubject, englishMessage } from "@/lib/messages";
+import {
+  bilingualMessage,
+  emailSubject,
+  englishMessage,
+  templateVariables,
+} from "@/lib/messages";
 
 export type NotifyChannelResult = { ok: boolean; error?: string };
 
@@ -56,7 +61,37 @@ async function sendWhatsApp(booking: Booking): Promise<void> {
 
   // The literal "whatsapp:" prefix lives in the env var so it cannot be
   // forgotten in code; both numbers must also be E.164 ("whatsapp:+91…").
-  await twilio(sid, token).messages.create({
+  const client = twilio(sid, token);
+
+  // Which of the two shapes below goes out is decided entirely by whether a
+  // content SID is configured — see plan/08-external-services.md §2.
+  //
+  // A production WhatsApp sender only accepts free-form text inside the
+  // 24-hour window after the recipient last messaged the sender. A booking
+  // notification is unprompted by definition, so in production it must be a
+  // template Meta approved in advance: a content SID plus its variables. The
+  // Twilio sandbox is the opposite — it takes free-form text and has no
+  // approved templates at all.
+  //
+  // Hence no attempt to "detect" the right mode and no fallback from one to
+  // the other: a fallback would turn a misconfigured template into a message
+  // that silently stops arriving the moment the 24-hour window closes, which
+  // is exactly the failure this path exists to remove. The environment says
+  // which sender this is, and the send fails loudly onto `whatsappError` if
+  // that is wrong.
+  const contentSid = process.env.TWILIO_WHATSAPP_CONTENT_SID?.trim();
+
+  if (contentSid) {
+    await client.messages.create({
+      from,
+      to,
+      contentSid,
+      contentVariables: JSON.stringify(templateVariables(booking)),
+    });
+    return;
+  }
+
+  await client.messages.create({
     from,
     to,
     body: bilingualMessage(booking),
