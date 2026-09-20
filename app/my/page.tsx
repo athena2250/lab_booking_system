@@ -99,7 +99,7 @@ export default async function MyBookingsPage({
 
       <nav
         aria-label="Which bookings"
-        className="border-edge mb-5 inline-flex gap-1 rounded-[10px] border bg-[#131316] p-1"
+        className="border-edge mb-5 inline-flex gap-1 rounded-[10px] border bg-tray p-1"
       >
         {(
           [
@@ -112,7 +112,7 @@ export default async function MyBookingsPage({
             href={key === "upcoming" ? "/my" : "/my?show=past"}
             aria-current={tab === key ? "page" : undefined}
             className={`rounded-[7px] px-3.5 py-[7px] text-[13.5px] font-medium no-underline ${
-              tab === key ? "bg-[#26262b] text-fg" : "text-muted-3 hover:text-fg"
+              tab === key ? "bg-tray-active text-fg" : "text-muted-3 hover:text-fg"
             }`}
           >
             {label}{" "}

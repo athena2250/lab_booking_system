@@ -2,19 +2,28 @@
  * Teacher account management from the command line.
  *
  *   node scripts/teachers.mjs list
- *   node scripts/teachers.mjs add "Asha Rao" asha [--admin] [--password X]
- *   node scripts/teachers.mjs passwd asha [--password X]
- *   node scripts/teachers.mjs role asha teacher|admin
- *   node scripts/teachers.mjs retire asha
- *   node scripts/teachers.mjs restore asha
- *   node scripts/teachers.mjs bootstrap        # account from TEACHER_USERNAME/PASSWORD
+ *   node scripts/teachers.mjs add "Asha Rao" asha@ncfe.ac.in [--admin] [--password X]
+ *   node scripts/teachers.mjs passwd asha@ncfe.ac.in [--password X]
+ *   node scripts/teachers.mjs role asha@ncfe.ac.in teacher|admin
+ *   node scripts/teachers.mjs retire asha@ncfe.ac.in
+ *   node scripts/teachers.mjs restore asha@ncfe.ac.in
+ *   node scripts/teachers.mjs bootstrap        # account from TEACHER_EMAIL/PASSWORD
+ *
+ * Teachers normally sign themselves up at /signup with their school email and
+ * choose their own password. This is the other way in: seeding the first admin
+ * against an empty database, and putting an account right when nobody can sign
+ * in to fix it through the UI.
+ *
+ * Every address argument may be given bare — "asha" is expanded to
+ * asha@ncfe.ac.in — because typing the school domain forty times is how a typo
+ * gets in.
  *
  * With no --password a readable passcode is generated and printed once. It is
  * stored only as a scrypt hash, so a lost passcode is reset, never recovered.
  *
- * The passcode alphabet and the username rules live in `lib/accounts.ts`, which
- * the admin screens import too — the two ways of creating an account have to
- * agree about what a valid one looks like.
+ * The passcode alphabet lives in `lib/accounts.ts` and the rules about what a
+ * valid account looks like in `lib/account-rules.ts`, both of which the app
+ * imports too — the ways of creating an account have to agree.
  *
  * `@prisma/client` here, not app/generated/prisma: the generated client is
  * TypeScript with extensionless imports, which Next bundles and plain Node
@@ -25,11 +34,12 @@
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../lib/password.ts";
+import { generatePassword } from "../lib/accounts.ts";
 import {
-  USERNAME_RULE,
-  generatePassword,
-  normaliseUsername as parseUsername,
-} from "../lib/accounts.ts";
+  EMAIL_RULE,
+  SCHOOL_EMAIL_DOMAIN,
+  normaliseEmail as parseEmail,
+} from "../lib/account-rules.ts";
 
 const prisma = new PrismaClient();
 
@@ -44,10 +54,15 @@ for (let i = 0; i < argv.length; i += 1) {
   else positional.push(arg);
 }
 
-function normaliseUsername(value) {
-  const username = parseUsername(value);
-  if (!username) fail(USERNAME_RULE);
-  return username;
+function normaliseEmail(value) {
+  // A bare local part is expanded, so `add "Asha Rao" asha` and
+  // `add "Asha Rao" asha@ncfe.ac.in` mean the same account.
+  const given = String(value ?? "").trim();
+  const email = parseEmail(
+    given.includes("@") ? given : `${given}@${SCHOOL_EMAIL_DOMAIN}`,
+  );
+  if (!email) fail(EMAIL_RULE);
+  return email;
 }
 
 function fail(message) {
@@ -56,11 +71,12 @@ function fail(message) {
   throw new Error(message);
 }
 
-async function findOrFail(username) {
+async function findOrFail(email) {
+  const address = normaliseEmail(email);
   const teacher = await prisma.teacher.findUnique({
-    where: { username: normaliseUsername(username) },
+    where: { email: address },
   });
-  if (!teacher) fail(`No account with username "${username}".`);
+  if (!teacher) fail(`No account for "${address}".`);
   return teacher;
 }
 
@@ -73,60 +89,60 @@ async function list() {
   if (teachers.length === 0) {
     console.log(
       "No accounts yet. Create the first one:\n" +
-        '  node scripts/teachers.mjs add "Your Name" yourname --admin',
+        `  node scripts/teachers.mjs add "Your Name" you@${SCHOOL_EMAIL_DOMAIN} --admin`,
     );
     return;
   }
 
   const pad = (value, width) => String(value).padEnd(width);
   const nameWidth = Math.max(4, ...teachers.map((t) => t.name.length));
-  const userWidth = Math.max(8, ...teachers.map((t) => t.username.length));
+  const mailWidth = Math.max(5, ...teachers.map((t) => t.email.length));
 
   console.log(
-    `${pad("NAME", nameWidth)}  ${pad("USERNAME", userWidth)}  ROLE     STATUS   BOOKINGS`,
+    `${pad("NAME", nameWidth)}  ${pad("EMAIL", mailWidth)}  ROLE     STATUS   BOOKINGS`,
   );
   for (const t of teachers) {
     console.log(
-      `${pad(t.name, nameWidth)}  ${pad(t.username, userWidth)}  ` +
+      `${pad(t.name, nameWidth)}  ${pad(t.email, mailWidth)}  ` +
         `${pad(t.role.toLowerCase(), 7)}  ${pad(t.active ? "active" : "retired", 7)}  ${t._count.bookings}`,
     );
   }
 }
 
-async function add([name, username]) {
-  if (!name || !username) {
-    fail('Usage: add "Full Name" username [--admin] [--password X]');
+async function add([name, email]) {
+  if (!name || !email) {
+    fail('Usage: add "Full Name" email [--admin] [--password X]');
   }
   const password = flags.get("password") ?? generatePassword();
   const teacher = await prisma.teacher.create({
     data: {
       name: String(name).trim(),
-      username: normaliseUsername(username),
+      email: normaliseEmail(email),
       passwordHash: await hashPassword(password),
       role: flags.get("admin") ? "ADMIN" : "TEACHER",
     },
   });
   console.log(`✔ Created ${teacher.role.toLowerCase()} "${teacher.name}"`);
-  announce(teacher.username, password);
+  announce(teacher.email, password);
 }
 
-async function passwd([username]) {
-  const teacher = await findOrFail(username);
+async function passwd([email]) {
+  const teacher = await findOrFail(email);
   const password = flags.get("password") ?? generatePassword();
   await prisma.teacher.update({
     where: { id: teacher.id },
     data: { passwordHash: await hashPassword(password) },
   });
   console.log(`✔ Reset the passcode for "${teacher.name}"`);
-  announce(teacher.username, password);
+  announce(teacher.email, password);
 }
 
-async function role([username, role]) {
+async function role([email, role]) {
   const next = String(role ?? "").toUpperCase();
   if (next !== "TEACHER" && next !== "ADMIN") {
-    fail("Usage: role <username> teacher|admin");
+    fail("Usage: role <email> teacher|admin");
   }
-  const teacher = await findOrFail(username);
+  const teacher = await findOrFail(email);
   await prisma.teacher.update({
     where: { id: teacher.id },
     data: { role: next },
@@ -134,8 +150,8 @@ async function role([username, role]) {
   console.log(`✔ "${teacher.name}" is now ${next.toLowerCase()}`);
 }
 
-async function setActive([username], active) {
-  const teacher = await findOrFail(username);
+async function setActive([email], active) {
+  const teacher = await findOrFail(email);
   await prisma.teacher.update({ where: { id: teacher.id }, data: { active } });
   // Retiring keeps the row, so the bookings this teacher made keep pointing at
   // a name rather than becoming anonymous history.
@@ -148,32 +164,32 @@ async function setActive([username], active) {
  *  fresh database be made usable by `npm run teachers:bootstrap` with nothing
  *  typed in, and is what `scripts/verify.mjs` signs in as. */
 async function bootstrap() {
-  const username = process.env.TEACHER_USERNAME;
+  const email = process.env.TEACHER_EMAIL;
   const password = process.env.TEACHER_PASSWORD;
-  if (!username || !password) {
-    fail("Set TEACHER_USERNAME and TEACHER_PASSWORD in .env first.");
+  if (!email || !password) {
+    fail("Set TEACHER_EMAIL and TEACHER_PASSWORD in .env first.");
   }
 
   const name = process.env.TEACHER_NAME?.trim() || "Staff Room";
-  const normalised = normaliseUsername(username);
+  const normalised = normaliseEmail(email);
   const passwordHash = await hashPassword(password);
 
   // Idempotent: running it twice re-syncs the passcode to .env rather than
-  // failing on the unique username.
+  // failing on the unique email.
   const teacher = await prisma.teacher.upsert({
-    where: { username: normalised },
+    where: { email: normalised },
     update: { passwordHash, active: true },
-    create: { name, username: normalised, passwordHash, role: "ADMIN" },
+    create: { name, email: normalised, passwordHash, role: "ADMIN" },
   });
   console.log(
-    `✔ Bootstrap ${teacher.role.toLowerCase()} account "${teacher.name}" (${teacher.username}) is ready — passcode is TEACHER_PASSWORD from .env`,
+    `✔ Bootstrap ${teacher.role.toLowerCase()} account "${teacher.name}" (${teacher.email}) is ready — passcode is TEACHER_PASSWORD from .env`,
   );
 }
 
-function announce(username, password) {
+function announce(email, password) {
   if (flags.get("password")) return;
   console.log(
-    `\n  username: ${username}\n  passcode: ${password}\n\n` +
+    `\n  email:    ${email}\n  passcode: ${password}\n\n` +
       "  This is the only time the passcode is shown. Hand it over in person;\n" +
       "  if it is lost, reset it with `passwd` rather than looking it up.",
   );

@@ -179,7 +179,7 @@ export function AdminDay({ today }: { today: string }) {
           {error ? (
             <p
               role="alert"
-              className="text-accent-3 mb-5 rounded-[10px] border border-[rgba(255,90,54,0.35)] bg-[rgba(255,90,54,0.08)] px-3.5 py-3 text-sm"
+              className="text-accent-3 mb-5 rounded-[10px] border border-accent-edge bg-accent-tint px-3.5 py-3 text-sm"
             >
               {error}{" "}
               <button
@@ -264,10 +264,10 @@ function NotificationSummary({
     <p
       className={`mb-5 rounded-[10px] border px-3.5 py-3 text-[13.5px] ${
         tone === "bad"
-          ? "border-[rgba(255,90,54,0.35)] bg-[rgba(255,90,54,0.08)] text-accent-3"
+          ? "border-accent-edge bg-accent-tint text-accent-3"
           : tone === "unknown"
             ? "border-edge bg-ink-2 text-muted"
-            : "border-[rgba(62,207,142,0.3)] bg-[rgba(62,207,142,0.07)] text-ok"
+            : "border-ok-edge bg-ok-tint text-ok"
       }`}
     >
       <span className="mr-2 font-semibold">
@@ -302,8 +302,8 @@ function SlotCard({
             ? "border-line bg-ink-2 opacity-55"
             : "border-edge-strong bg-surface"
           : state === "failed"
-            ? "border-[rgba(255,90,54,0.45)] bg-[rgba(255,90,54,0.05)]"
-            : "border-[#1e1e22] bg-ink-2"
+            ? "border-accent-edge-strong bg-accent-tint"
+            : "border-line bg-ink-2"
       } ${loading ? "opacity-50" : ""}`}
     >
       <div className="flex items-center justify-between">
@@ -312,7 +312,7 @@ function SlotCard({
         </span>
         <span
           className={`size-[7px] rounded-full ${
-            !b ? (isPast ? "bg-[#33333a]" : "bg-ok") : "bg-faint"
+            !b ? (isPast ? "bg-dot-idle" : "bg-ok") : "bg-faint"
           }`}
         />
       </div>
@@ -386,9 +386,9 @@ function Delivery({ booking }: { booking: Booking }) {
 function Pill({ label, status }: { label: string; status: Booking["email"]["status"] }) {
   const tone =
     status === "SENT"
-      ? "border-[rgba(62,207,142,0.35)] text-ok"
+      ? "border-ok-edge text-ok"
       : status === "FAILED"
-        ? "border-[rgba(255,90,54,0.45)] text-accent-3"
+        ? "border-accent-edge-strong text-accent-3"
         : "border-edge text-faint";
   return (
     <span

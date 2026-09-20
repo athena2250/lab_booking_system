@@ -16,7 +16,7 @@ export default async function TeachersPage() {
     select: {
       id: true,
       name: true,
-      username: true,
+      email: true,
       role: true,
       active: true,
       _count: { select: { bookings: true } },
@@ -35,15 +35,17 @@ export default async function TeachersPage() {
         Teacher accounts
       </h1>
       <p className="text-muted-3 m-0 mb-[26px] text-[14.5px]">
-        One account per teacher. Passcodes are stored hashed, so a lost one is
-        reset here rather than looked up.
+        One account per teacher, keyed on their school email. Teachers sign
+        themselves up and choose their own password; the passcodes issued here
+        are for seeding an account or unlocking someone who is stuck. They are
+        stored hashed, so a lost one is reset rather than looked up.
       </p>
 
       <TeacherAdmin
         teachers={teachers.map((t) => ({
           id: t.id,
           name: t.name,
-          username: t.username,
+          email: t.email,
           role: t.role,
           active: t.active,
           bookings: t._count.bookings,

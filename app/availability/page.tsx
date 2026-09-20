@@ -73,7 +73,7 @@ export default function AvailabilityPage() {
           {error ? (
             <p
               role="alert"
-              className="text-accent-3 mb-5 rounded-[10px] border border-[rgba(255,90,54,0.35)] bg-[rgba(255,90,54,0.08)] px-3.5 py-3 text-sm"
+              className="text-accent-3 mb-5 rounded-[10px] border border-accent-edge bg-accent-tint px-3.5 py-3 text-sm"
             >
               {error}{" "}
               <button
@@ -96,7 +96,7 @@ export default function AvailabilityPage() {
               </span>
               {pastCount > 0 && !loading && (
                 <span className="inline-flex items-center gap-[7px]">
-                  <span className="bg-[#33333a] size-[7px] rounded-full" />
+                  <span className="bg-dot-idle size-[7px] rounded-full" />
                   {pastCount} past
                 </span>
               )}
@@ -116,7 +116,7 @@ export default function AvailabilityPage() {
                     isPast
                       ? "border-line bg-ink-2 opacity-55"
                       : slot.booked
-                        ? "border-[#1e1e22] bg-ink-2"
+                        ? "border-line bg-ink-2"
                         : "border-edge-strong bg-surface"
                   } ${loading ? "opacity-50" : ""}`}
                 >
@@ -131,7 +131,7 @@ export default function AvailabilityPage() {
                     <span
                       className={`size-[7px] rounded-full ${
                         isPast
-                          ? "bg-[#33333a]"
+                          ? "bg-dot-idle"
                           : slot.booked
                             ? "bg-faint"
                             : "bg-ok"

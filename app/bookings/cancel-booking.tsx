@@ -60,7 +60,7 @@ export function CancelBooking({
         type="button"
         onClick={cancel}
         disabled={pending}
-        className="border-accent/50 text-accent-2 hover:bg-accent/10 cursor-pointer rounded-[8px] border px-2.5 py-1.5 text-[12.5px] disabled:opacity-60"
+        className="border-accent-edge-strong text-accent-2 hover:bg-accent-tint cursor-pointer rounded-[8px] border px-2.5 py-1.5 text-[12.5px] disabled:opacity-60"
       >
         {pending ? "Cancelling…" : "Confirm"}
       </button>

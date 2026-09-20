@@ -236,12 +236,12 @@ function sessionCookie(res) {
   return null;
 }
 
-async function login(base, { username, password } = {}) {
+async function login(base, { email, password } = {}) {
   const res = await fetch(`${base}/api/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      username: username ?? process.env.TEACHER_USERNAME,
+      email: email ?? process.env.TEACHER_EMAIL,
       password: password ?? process.env.TEACHER_PASSWORD,
     }),
   });
@@ -1070,7 +1070,7 @@ function summarise() {
 // --------------------------------------------------------------------- main
 
 async function main() {
-  const missing = ["TEACHER_USERNAME", "TEACHER_PASSWORD", "SESSION_SECRET"].filter(
+  const missing = ["TEACHER_EMAIL", "TEACHER_PASSWORD", "SESSION_SECRET"].filter(
     (name) => !process.env[name],
   );
   if (missing.length) {
@@ -1129,7 +1129,7 @@ async function main() {
     // `npm run teachers:bootstrap` before this can pass.
     expect(
       cookie,
-      "could not sign in — check TEACHER_USERNAME / TEACHER_PASSWORD and run `npm run teachers:bootstrap`",
+      "could not sign in — check TEACHER_EMAIL / TEACHER_PASSWORD and run `npm run teachers:bootstrap`",
     );
     await sectionB(ctx.base, cookie);
     await sectionC(ctx.base, cookie, hasDb);

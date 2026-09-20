@@ -1,12 +1,18 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
-
-const FIELD =
-  "bg-field border-edge-strong text-fg w-full rounded-[10px] border px-3.5 py-3.5 text-[15px] outline-none focus:border-accent";
+import { SCHOOL_EMAIL_DOMAIN } from "@/lib/account-rules";
+import {
+  AuthCard,
+  FIELD,
+  FormError,
+  LABEL,
+  SUBMIT,
+} from "@/app/components/auth-card";
 
 export default function LoginPage() {
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -20,7 +26,7 @@ export default function LoginPage() {
       const res = await fetch("/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ email, password }),
       });
 
       if (res.ok) {
@@ -42,79 +48,63 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="grid flex-1 place-items-center px-6 py-15">
-      <div className="border-edge bg-surface w-full max-w-[420px] rounded-[18px] border p-9">
-        <span className="bg-accent text-ink font-display mb-6 grid size-[38px] place-items-center rounded-[10px] text-[19px] font-bold">
-          L
-        </span>
-        <h1 className="font-display m-0 mb-2 text-2xl font-semibold tracking-[-0.02em]">
-          Teacher sign in
-        </h1>
-        <p className="text-muted-3 m-0 mb-7 text-[14.5px] leading-[1.55]">
-          Sign in as yourself — bookings are made in your name, and your own
-          upcoming and past periods are listed for you. The session lasts twelve
-          hours, one school day.
-        </p>
+    <AuthCard
+      title="Teacher sign in"
+      intro={
+        <>
+          Sign in with your school email and the password you chose. Bookings
+          are made in your name, and your own upcoming and past periods are
+          listed for you. The session lasts twelve hours, one school day.
+        </>
+      }
+      footer={
+        <>
+          No account yet?{" "}
+          <Link href="/signup" className="text-accent-2 no-underline">
+            Sign up with your school email
+          </Link>
+          . Forgotten your password? Ask the lab in-charge to reset it — it is
+          stored hashed and can&rsquo;t be looked up.
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit}>
+        <label htmlFor="email" className={LABEL}>
+          School email
+        </label>
+        <input
+          id="email"
+          type="email"
+          name="email"
+          autoComplete="username"
+          placeholder={`you@${SCHOOL_EMAIL_DOMAIN}`}
+          required
+          autoFocus
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className={`${FIELD} mb-[18px]`}
+        />
 
-        <form onSubmit={handleSubmit}>
-          <label
-            htmlFor="username"
-            className="text-muted mb-2 block text-[13px]"
-          >
-            Username
-          </label>
-          <input
-            id="username"
-            type="text"
-            name="username"
-            autoComplete="username"
-            required
-            autoFocus
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            className={`${FIELD} mb-[18px]`}
-          />
+        <label htmlFor="password" className={LABEL}>
+          Password
+        </label>
+        <input
+          id="password"
+          type="password"
+          name="password"
+          autoComplete="current-password"
+          required
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className={`${FIELD} mb-[18px]`}
+        />
 
-          <label
-            htmlFor="password"
-            className="text-muted mb-2 block text-[13px]"
-          >
-            Passcode
-          </label>
-          <input
-            id="password"
-            type="password"
-            name="password"
-            autoComplete="current-password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className={`${FIELD} mb-[18px]`}
-          />
+        <FormError message={error} />
 
-          {error && (
-            <p
-              role="alert"
-              className="text-accent-3 mb-[18px] rounded-[10px] border border-[rgba(255,90,54,0.35)] bg-[rgba(255,90,54,0.08)] px-3.5 py-3 text-sm"
-            >
-              {error}
-            </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="bg-accent text-ink w-full cursor-pointer rounded-[10px] py-3.5 text-[15px] font-semibold disabled:opacity-60"
-          >
-            {submitting ? "Signing in…" : "Sign in"}
-          </button>
-        </form>
-
-        <p className="text-muted-3 mt-5 mb-0 text-[12.5px] leading-[1.5]">
-          Your own username and passcode. Ask the lab in-charge if you
-          don&rsquo;t have one yet, or to have yours reset.
-        </p>
-      </div>
-    </main>
+        <button type="submit" disabled={submitting} className={SUBMIT}>
+          {submitting ? "Signing in…" : "Sign in"}
+        </button>
+      </form>
+    </AuthCard>
   );
 }

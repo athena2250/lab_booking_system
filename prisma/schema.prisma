@@ -84,7 +84,12 @@ enum Role {
 model Teacher {
   id           String    @id @default(cuid())
   name         String
-  username     String    @unique
+  /// The school-issued address, lowercased. It is the sign-in identity and the
+  /// membership rule in one: `lib/account-rules.ts` only accepts the school
+  /// domain, so holding such an address is what lets someone sign themselves
+  /// up. Stored normalised because the unique index is case-sensitive and two
+  /// spellings of one teacher would be two accounts.
+  email        String    @unique
   passwordHash String
   role         Role      @default(TEACHER)
   // Staff leave. Deleting the row would take their bookings' history with it,

@@ -4,13 +4,14 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
 import { hashPassword } from "@/lib/password";
+import { createAccount } from "@/lib/teachers";
+import { generatePassword } from "@/lib/accounts";
 import {
+  EMAIL_RULE,
   NAME_RULE,
-  USERNAME_RULE,
-  generatePassword,
+  normaliseEmail,
   normaliseName,
-  normaliseUsername,
-} from "@/lib/accounts";
+} from "@/lib/account-rules";
 import type { Role } from "@/lib/auth";
 import type { ActionResult } from "@/app/admin/action-result";
 
@@ -72,37 +73,24 @@ export async function createTeacher(
     const name = normaliseName(formData.get("name"));
     if (!name) return { ok: false, error: NAME_RULE };
 
-    const username = normaliseUsername(formData.get("username"));
-    if (!username) return { ok: false, error: USERNAME_RULE };
+    const email = normaliseEmail(formData.get("email"));
+    if (!email) return { ok: false, error: EMAIL_RULE };
 
     const role: Role = formData.get("role") === "ADMIN" ? "ADMIN" : "TEACHER";
 
-    const taken = await prisma.teacher.findUnique({
-      where: { username },
-      select: { id: true },
-    });
-    if (taken) {
-      return {
-        ok: false,
-        error: `The username "${username}" is already taken.`,
-      };
-    }
-
+    // Teachers normally sign themselves up and pick their own password. This
+    // path stays for the two cases that can't: seeding an admin, and making an
+    // account for someone who hasn't got round to it. The generated passcode is
+    // a starting point the teacher replaces from their profile page.
     const passcode = generatePassword();
-    await prisma.teacher.create({
-      data: {
-        name,
-        username,
-        passwordHash: await hashPassword(passcode),
-        role,
-      },
-    });
+    const created = await createAccount({ name, email, password: passcode, role });
+    if (!created.ok) return { ok: false, error: created.error };
 
     revalidateTeachers();
     return {
       ok: true,
       message: `Created ${role === "ADMIN" ? "admin" : "teacher"} "${name}".`,
-      credentials: { username, passcode },
+      credentials: { email, passcode },
     };
   });
 }
@@ -113,7 +101,7 @@ export async function resetPasscode(id: string): Promise<ActionResult> {
 
     const teacher = await prisma.teacher.findUnique({
       where: { id },
-      select: { username: true, name: true },
+      select: { email: true, name: true },
     });
     if (!teacher) return { ok: false, error: "That account no longer exists." };
 
@@ -127,7 +115,7 @@ export async function resetPasscode(id: string): Promise<ActionResult> {
     return {
       ok: true,
       message: `New passcode for ${teacher.name}.`,
-      credentials: { username: teacher.username, passcode },
+      credentials: { email: teacher.email, passcode },
     };
   });
 }

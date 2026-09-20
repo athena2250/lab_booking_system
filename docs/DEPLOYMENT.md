@@ -83,7 +83,7 @@ Environment Variables for **Production**:
 
 - [ ] `DATABASE_URL` (pooled)
 - [ ] `DIRECT_DATABASE_URL` (unpooled)
-- [ ] `TEACHER_USERNAME` — username of the bootstrap admin account
+- [ ] `TEACHER_EMAIL` — @ncfe.ac.in address of the bootstrap admin account
 - [ ] `TEACHER_PASSWORD` — its passcode
 - [ ] `SESSION_SECRET` — generate a fresh one for production: `openssl rand -base64 32`
 - [ ] `GMAIL_USER`
@@ -122,7 +122,7 @@ Note what it deliberately does **not** do: on Preview and development the
 notification variables are reported as warnings, never errors. Blank
 notification credentials on Preview are the recommended setup (see below), and
 failing the build on them would punish the safe configuration. Only
-`DATABASE_URL`, `DIRECT_DATABASE_URL`, `TEACHER_USERNAME`, `TEACHER_PASSWORD`
+`DATABASE_URL`, `DIRECT_DATABASE_URL`, `TEACHER_EMAIL`, `TEACHER_PASSWORD`
 and `SESSION_SECRET` are hard requirements everywhere — without those there is
 no database and no way to log in.
 
@@ -191,7 +191,7 @@ Locally the same commands are `npm run teachers -- <command>`.
 Run these against the real URL, once:
 
 - [ ] `/login` loads; visiting `/book` while logged out redirects there
-- [ ] Logging in with the production `TEACHER_USERNAME` / `TEACHER_PASSWORD` works
+- [ ] Logging in with the production `TEACHER_EMAIL` / `TEACHER_PASSWORD` works
 - [ ] A teacher account created with `teachers.mjs add` can sign in, and `/my`
       lists that teacher's bookings and nobody else's
 - [ ] A teacher account is bounced off `/bookings` to `/my`; an admin is not

@@ -1,46 +1,99 @@
 @import "tailwindcss";
 
-/* Palette, type scale and radii lifted from the Lab Booking design file. The
-   design is dark-only by intent — a school staff room projector and a phone in
-   a lab both read this better than a light theme, and half-converting it would
-   leave the accent orange failing contrast on white. */
+/* Palette, type scale and radii lifted from the Lab Booking design file.
+   The design started dark-only; every colour token now carries a light twin so
+   a teacher can pick light, dark, or whatever their phone or laptop is already
+   set to.
+                                                                   light   dark
+   Which of the two applies is decided by the used `color-scheme` further down,
+   so there is no second copy of the palette to keep in step and no class for
+   JavaScript to toggle on every element. It also means the native controls —
+   the date picker's glyph, its dropdown, scrollbars — follow along on their
+   own, which is what the old `color-scheme: dark` on the date inputs was for.
+
+   Every colour in the app goes through one of these names. A raw hex in a
+   component would survive the switch and show up as a dark patch on a light
+   page, so there are none; that is also why the tints and edges below have
+   names instead of being written as `bg-accent/10` at the call site, since an
+   opacity modifier cannot see inside `light-dark()`. */
 @theme {
-  --color-ink: #09090b;
-  --color-ink-2: #0c0c0e;
-  --color-surface: #111114;
-  --color-field: #0b0b0d;
+  /* Dark stacks progressively lighter surfaces on a near-black page. Light
+     inverts that ordering rather than each value — a faintly grey page with
+     white cards raised off it — because inverting `surface` on its own would
+     have put the brightest thing on the screen *behind* the cards. */
+  --color-ink: light-dark(#f7f7f8, #09090b);
+  --color-ink-2: light-dark(#f1f1f3, #0c0c0e);
+  --color-surface: light-dark(#ffffff, #111114);
+  --color-field: light-dark(#ffffff, #0b0b0d);
 
-  --color-line: #1c1c20;
-  --color-edge: #232327;
-  --color-edge-strong: #2a2a2f;
+  /* The translucent sticky header, and the tray the nav pills sit in. Both sit
+     on the page rather than on a card, so they track `ink`, not `surface`. */
+  --color-header: light-dark(rgba(255, 255, 255, 0.84), rgba(9, 9, 11, 0.82));
+  --color-tray: light-dark(#eeeef1, #131316);
+  --color-tray-active: light-dark(#ffffff, #26262b);
 
-  --color-fg: #f4f4f5;
-  --color-fg-2: #d4d4d8;
-  --color-muted: #a1a1aa;
-  --color-muted-2: #9a9aa2;
-  --color-muted-3: #8b8b93;
-  --color-faint: #5b5b63;
+  --color-line: light-dark(#e4e4e7, #1c1c20);
+  --color-line-soft: light-dark(#ececef, #18181b);
+  --color-edge: light-dark(#d9d9de, #232327);
+  --color-edge-strong: light-dark(#bcbcc4, #2a2a2f);
 
-  --color-accent: #ff5a36;
-  --color-accent-2: #ff7a5c;
-  --color-accent-3: #ff8a6e;
-  --color-ok: #3ecf8e;
+  --color-fg: light-dark(#18181b, #f4f4f5);
+  --color-fg-2: light-dark(#3f3f46, #d4d4d8);
+  --color-muted: light-dark(#52525b, #a1a1aa);
+  --color-muted-2: light-dark(#5a5a63, #9a9aa2);
+  --color-muted-3: light-dark(#6b6b73, #8b8b93);
+  --color-faint: light-dark(#7c7c85, #5b5b63);
+
+  /* A slot that is unclaimed but in the past: present, but not on offer. */
+  --color-dot-idle: light-dark(#c7c7ce, #33333a);
+
+  /* The design's #ff5a36 only reaches 3.1:1 on white, so it fails as body text
+     and under white labels alike. Each light step is darkened until it clears
+     4.5:1 both ways round: as ink on the page, and as a fill beneath `ink`. */
+  --color-accent: light-dark(#c93a10, #ff5a36);
+  --color-accent-2: light-dark(#ad3509, #ff7a5c);
+  --color-accent-3: light-dark(#9a2f08, #ff8a6e);
+  --color-ok: light-dark(#0f7d50, #3ecf8e);
+
+  /* Tints and edges for the accent/ok panels — error banners, the confirmation
+     tick, a period with nothing left. The light alphas are lower: the same
+     fraction of a colour reads far heavier over white than over near-black. */
+  --color-accent-tint: light-dark(rgba(201, 58, 16, 0.07), rgba(255, 90, 54, 0.08));
+  --color-accent-tint-strong: light-dark(rgba(201, 58, 16, 0.13), rgba(255, 90, 54, 0.14));
+  --color-accent-edge: light-dark(rgba(201, 58, 16, 0.3), rgba(255, 90, 54, 0.35));
+  --color-accent-edge-strong: light-dark(rgba(201, 58, 16, 0.45), rgba(255, 90, 54, 0.45));
+  --color-accent-line: light-dark(#efdcd5, #2a2126);
+  --color-accent-surface: light-dark(#fdf6f3, #141012);
+
+  --color-ok-tint: light-dark(rgba(15, 125, 80, 0.06), rgba(62, 207, 142, 0.07));
+  --color-ok-tint-strong: light-dark(rgba(15, 125, 80, 0.12), rgba(62, 207, 142, 0.14));
+  --color-ok-edge: light-dark(rgba(15, 125, 80, 0.3), rgba(62, 207, 142, 0.35));
 
   --font-sans: var(--font-dm-sans), system-ui, sans-serif;
   --font-display: var(--font-space-grotesk), system-ui, sans-serif;
   --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
 }
 
+/* The theme switch itself. Naming both schemes means "follow the device", and
+   is what a teacher who has never touched the control gets — reacting to them
+   changing it in System Settings, with no stored preference and no JavaScript.
+   Pinning one overrides the device. `lib/theme.ts` sets the attribute. */
+:root {
+  color-scheme: light dark;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
 html,
 body {
   background: var(--color-ink);
   color: var(--color-fg);
-}
-
-/* The date inputs are native controls; without this their picker glyph and
-   dropdown render as black-on-black. */
-input[type="date"] {
-  color-scheme: dark;
 }
 
 input::placeholder {

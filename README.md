@@ -19,7 +19,7 @@ Requires Node 20+ and a local PostgreSQL.
 ```bash
 cp .env.example .env         # then fill in every value — see plan/08-external-services.md
 npx prisma migrate dev       # create the schema
-npm run teachers:bootstrap   # first account, from TEACHER_USERNAME/TEACHER_PASSWORD
+npm run teachers:bootstrap   # first admin, from TEACHER_EMAIL/TEACHER_PASSWORD
 npm run dev
 ```
 
@@ -46,7 +46,7 @@ Locally there is no connection pooler, so `DATABASE_URL` and
 | `npm start` | Serve a production build |
 | `npm run lint` | ESLint |
 | `npm run teachers` | Teacher accounts: `list`, `add`, `passwd`, `role`, `retire`, `restore`, `bootstrap` |
-| `npm run teachers:bootstrap` | Create/refresh the first account from `TEACHER_USERNAME` / `TEACHER_PASSWORD` |
+| `npm run teachers:bootstrap` | Create/refresh the first admin from `TEACHER_EMAIL` / `TEACHER_PASSWORD` |
 | `npm run check:services` | Send a test email and WhatsApp message to prove the credentials work (`--dry` checks env only) |
 | `npm run verify` | End-to-end verification — auth, availability, booking, the double-booking race (`--prod` for the pre-handover run). See [plan/10-verification.md](plan/10-verification.md) |
 

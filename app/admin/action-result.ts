@@ -8,7 +8,7 @@
  */
 
 /** Shown once, then gone — the passcode is stored only as a scrypt hash. */
-export type Credentials = { username: string; passcode: string };
+export type Credentials = { email: string; passcode: string };
 
 export type ActionResult =
   | { ok: true; message: string; credentials?: Credentials }

@@ -186,7 +186,7 @@ export function BookForm({ teacherName }: { teacherName: string }) {
           {loadError && (
             <p
               role="alert"
-              className="text-accent-3 mb-2.5 rounded-[10px] border border-[rgba(255,90,54,0.35)] bg-[rgba(255,90,54,0.08)] px-3.5 py-3 text-sm"
+              className="text-accent-3 mb-2.5 rounded-[10px] border border-accent-edge bg-accent-tint px-3.5 py-3 text-sm"
             >
               {loadError}{" "}
               <button
@@ -209,7 +209,7 @@ export function BookForm({ teacherName }: { teacherName: string }) {
                   key={slot.period}
                   className={`bg-field flex w-full items-center justify-between gap-3 rounded-[10px] border px-3.5 py-3 text-left ${
                     isSelected
-                      ? "border-accent bg-[rgba(255,90,54,0.08)]"
+                      ? "border-accent bg-accent-tint"
                       : "border-edge"
                   } ${
                     disabled
@@ -300,7 +300,7 @@ export function BookForm({ teacherName }: { teacherName: string }) {
         {error && (
           <p
             role="alert"
-            className="text-accent-3 mb-4 rounded-[10px] border border-[rgba(255,90,54,0.35)] bg-[rgba(255,90,54,0.08)] px-3.5 py-3 text-sm"
+            className="text-accent-3 mb-4 rounded-[10px] border border-accent-edge bg-accent-tint px-3.5 py-3 text-sm"
           >
             {error}
           </p>
@@ -358,7 +358,7 @@ function Confirmed({
   return (
     <main className="grid flex-1 place-items-center px-6 py-10">
       <div className="border-edge bg-surface w-full max-w-[520px] rounded-[18px] border p-9">
-        <span className="text-ok mb-5.5 grid size-11 place-items-center rounded-xl border border-[rgba(62,207,142,0.35)] bg-[rgba(62,207,142,0.14)] text-xl">
+        <span className="text-ok mb-5.5 grid size-11 place-items-center rounded-xl border border-ok-edge bg-ok-tint-strong text-xl">
           ✓
         </span>
         <h1 className="font-display m-0 mb-2 text-[25px] font-semibold tracking-[-0.02em]">
@@ -401,7 +401,7 @@ function Confirmed({
           // so rather than letting the lab in-charge be silently missed.
           <p
             role="alert"
-            className="text-accent-3 mt-5 rounded-[10px] border border-[rgba(255,90,54,0.35)] bg-[rgba(255,90,54,0.08)] px-3.5 py-3 text-sm"
+            className="text-accent-3 mt-5 rounded-[10px] border border-accent-edge bg-accent-tint px-3.5 py-3 text-sm"
           >
             The booking is held, but a notification could not be sent — please
             tell the lab in-charge yourself.
@@ -435,8 +435,8 @@ function Clash({
 }) {
   return (
     <main className="grid flex-1 place-items-center px-6 py-10">
-      <div className="w-full max-w-[520px] rounded-[18px] border border-[rgba(255,90,54,0.35)] bg-[#141012] p-9">
-        <span className="text-accent mb-5.5 grid size-11 place-items-center rounded-xl border border-[rgba(255,90,54,0.4)] bg-[rgba(255,90,54,0.14)] text-xl">
+      <div className="w-full max-w-[520px] rounded-[18px] border border-accent-edge bg-accent-surface p-9">
+        <span className="text-accent mb-5.5 grid size-11 place-items-center rounded-xl border border-accent-edge bg-accent-tint-strong text-xl">
           !
         </span>
         <h1 className="font-display m-0 mb-2 text-[25px] font-semibold tracking-[-0.02em]">
@@ -449,7 +449,7 @@ function Clash({
         </p>
 
         {heldBy && (
-          <div className="mb-6 rounded-xl border border-[#2a2126] p-4">
+          <div className="mb-6 rounded-xl border border-accent-line p-4">
             <p className="text-muted-3 m-0 mb-1.5 text-[13px]">Now held by</p>
             <p className="m-0 text-[15px] font-semibold">{heldBy}</p>
           </div>

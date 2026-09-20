@@ -63,7 +63,7 @@ export default async function BookingsPage() {
             {bookings.map((b) => (
               <div
                 key={b.id}
-                className={`${COLUMNS} items-center border-b border-[#18181b] py-4 text-[14.5px] last:border-b-0`}
+                className={`${COLUMNS} items-center border-b border-line-soft py-4 text-[14.5px] last:border-b-0`}
               >
                 <span className="text-fg-2">{formatDateShort(b.date)}</span>
                 <span className="text-accent font-mono text-[13px]">

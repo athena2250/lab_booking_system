@@ -35,13 +35,15 @@ export async function proxy(req: NextRequest) {
   return NextResponse.next();
 }
 
-// `/login` and `/api/login` stay outside the matcher, or the redirect loops.
-// `/` is the public overview page and stays outside it too.
+// `/login`, `/signup` and their two API routes stay outside the matcher, or the
+// redirect loops — and a teacher who has no account yet must be able to reach
+// the sign-up form. `/` is the public overview page and stays outside it too.
 export const config = {
   matcher: [
     "/book/:path*",
     "/availability/:path*",
     "/my/:path*",
+    "/profile/:path*",
     "/bookings/:path*",
     "/admin/:path*",
     "/api/bookings/:path*",

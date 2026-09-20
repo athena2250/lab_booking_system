@@ -6,71 +6,42 @@ import {
   createSessionToken,
 } from "@/lib/auth";
 import { authenticate } from "@/lib/teachers";
+import { clientIp, createLimiter } from "@/lib/rate-limit";
 
-// In-memory attempt counter. Resets on redeploy and isn't shared between
-// serverless instances — good enough to blunt a script on a school LAN,
-// and not relied on for anything else.
-const MAX_FAILURES = 10;
-const WINDOW_MS = 15 * 60 * 1000;
-const failures = new Map<string, { count: number; firstAt: number }>();
-
-function clientIp(req: NextRequest): string {
-  const forwarded = req.headers.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0].trim();
-  return req.headers.get("x-real-ip") ?? "unknown";
-}
-
-function isRateLimited(ip: string): boolean {
-  const entry = failures.get(ip);
-  if (!entry) return false;
-  if (Date.now() - entry.firstAt > WINDOW_MS) {
-    failures.delete(ip);
-    return false;
-  }
-  return entry.count >= MAX_FAILURES;
-}
-
-function recordFailure(ip: string): void {
-  const entry = failures.get(ip);
-  if (!entry || Date.now() - entry.firstAt > WINDOW_MS) {
-    failures.set(ip, { count: 1, firstAt: Date.now() });
-    return;
-  }
-  entry.count += 1;
-}
+const failures = createLimiter(10, 15 * 60 * 1000);
 
 export async function POST(req: NextRequest) {
   const ip = clientIp(req);
-  if (isRateLimited(ip)) {
+  if (failures.isLimited(ip)) {
     return NextResponse.json(
       { error: "Too many attempts. Try again in a few minutes." },
       { status: 429 },
     );
   }
 
-  let username = "";
+  let email = "";
   let password = "";
   try {
     const body = await req.json();
-    username = typeof body?.username === "string" ? body.username : "";
+    email = typeof body?.email === "string" ? body.email : "";
     password = typeof body?.password === "string" ? body.password : "";
   } catch {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
-  const account = await authenticate(username, password);
+  const account = await authenticate(email, password);
   if (!account) {
-    recordFailure(ip);
-    // Deliberately one message for a wrong passcode, an unknown username and a
-    // retired account: which of the three it was is not the sign-in form's
-    // business to disclose.
+    failures.record(ip);
+    // Deliberately one message for a wrong password, an unknown address, an
+    // address outside the school domain and a retired account: which of the
+    // four it was is not the sign-in form's business to disclose.
     return NextResponse.json(
-      { error: "Incorrect username or password." },
+      { error: "Incorrect email or password." },
       { status: 401 },
     );
   }
 
-  failures.delete(ip);
+  failures.clear(ip);
 
   // The role travels back so the login form knows where to land the person.
   const response = NextResponse.json({ ok: true, role: account.role });

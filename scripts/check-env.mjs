@@ -55,13 +55,13 @@ function keysFromEnvExample() {
 }
 
 // Vars the app cannot start without: without these there is no database and
-// no way to sign in at all — TEACHER_USERNAME/PASSWORD seed the bootstrap
+// no way to sign in at all — TEACHER_EMAIL/PASSWORD seed the bootstrap
 // account, so a deploy missing them has no way in until someone creates an
 // account by hand. These fail the build in every environment.
 const CRITICAL = new Set([
   "DATABASE_URL",
   "DIRECT_DATABASE_URL",
-  "TEACHER_USERNAME",
+  "TEACHER_EMAIL",
   "TEACHER_PASSWORD",
   "SESSION_SECRET",
 ]);

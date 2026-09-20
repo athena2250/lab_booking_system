@@ -13,11 +13,12 @@ import {
   type Credentials,
 } from "@/app/admin/action-result";
 import type { Role } from "@/lib/auth";
+import { SCHOOL_EMAIL_DOMAIN, emailLocalPart } from "@/lib/account-rules";
 
 export type TeacherRow = {
   id: string;
   name: string;
-  username: string;
+  email: string;
   role: Role;
   active: boolean;
   bookings: number;
@@ -66,9 +67,10 @@ export function TeacherAdmin({
         <div className="grid gap-3 sm:grid-cols-[1.2fr_1fr_auto_auto]">
           <Field name="name" label="Full name" placeholder="Asha Rao" />
           <Field
-            name="username"
-            label="Username"
-            placeholder="asha"
+            name="email"
+            label="School email"
+            type="email"
+            placeholder={`asha@${SCHOOL_EMAIL_DOMAIN}`}
             autoComplete="off"
             spellCheck={false}
           />
@@ -103,7 +105,7 @@ export function TeacherAdmin({
             className={`${COLUMNS} border-line bg-ink-2 text-muted-2 border-b py-3.5 text-xs tracking-[0.1em] uppercase`}
           >
             <span>Name</span>
-            <span>Username</span>
+            <span>School email</span>
             <span>Bookings</span>
             <span className="text-right">Actions</span>
           </div>
@@ -124,8 +126,15 @@ export function TeacherAdmin({
                   {!t.active && <Tag>Retired</Tag>}
                   {isSelf && <Tag>You</Tag>}
                 </span>
-                <span className="text-muted font-mono text-[13px]">
-                  {t.username}
+                {/* The domain is the same on every row, so only the local
+                    part earns space in a table this dense — the full address
+                    stays available on hover and to a screen reader. */}
+                <span
+                  className="text-muted font-mono text-[13px]"
+                  title={t.email}
+                >
+                  {emailLocalPart(t.email)}
+                  <span className="text-muted-3">@{SCHOOL_EMAIL_DOMAIN}</span>
                 </span>
                 <span className="text-muted-3">{t.bookings}</span>
                 <span className="flex flex-wrap justify-end gap-1.5">
@@ -173,7 +182,7 @@ export function TeacherAdmin({
 function Result({ result }: { result: ActionResult }) {
   if (!result.ok) {
     return (
-      <p className="border-accent/40 bg-accent/10 text-accent-3 mb-6 rounded-[10px] border px-4 py-3 text-[13.5px]">
+      <p className="border-accent-edge bg-accent-tint text-accent-3 mb-6 rounded-[10px] border px-4 py-3 text-[13.5px]">
         {result.error}
       </p>
     );
@@ -193,11 +202,12 @@ function Handover({ credentials }: { credentials: Credentials }) {
     <div className="border-line mt-3 border-t pt-3">
       <p className="text-muted-2 m-0 mb-2 text-[12.5px]">
         Write this down and hand it over in person. It is not stored and cannot
-        be shown again — a lost passcode is reset, never looked up.
+        be shown again — a lost passcode is reset, never looked up. Tell them to
+        change it from their profile page once they are in.
       </p>
       <p className="font-mono m-0 text-[14px]">
-        <span className="text-muted-3">username </span>
-        <span className="text-fg">{credentials.username}</span>
+        <span className="text-muted-3">email </span>
+        <span className="text-fg">{credentials.email}</span>
         <span className="text-muted-3"> · passcode </span>
         <span className="text-accent-2">{credentials.passcode}</span>
       </p>
