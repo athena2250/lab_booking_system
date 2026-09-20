@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
 import { DM_Sans, JetBrains_Mono, Space_Grotesk } from "next/font/google";
-import { COOKIE_NAME, verifySessionToken } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import { LAB_NAME, SCHOOL_NAME } from "@/lib/branding";
 import { SiteHeader } from "@/app/components/site-header";
 import "./globals.css";
@@ -26,10 +25,10 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  // Drives only which links the header offers. `proxy.ts` is what actually
-  // guards the routes, so a stale or forged cookie here costs nothing.
-  const session = (await cookies()).get(COOKIE_NAME)?.value;
-  const signedIn = await verifySessionToken(session);
+  // Drives only which links the header offers and whose name it shows.
+  // `proxy.ts` is what actually guards the routes, so a stale cookie here costs
+  // nothing — and a forged one cannot get past the signature check.
+  const session = await getSession();
 
   return (
     <html
@@ -37,7 +36,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       className={`${dmSans.variable} ${spaceGrotesk.variable} ${jetBrainsMono.variable} h-full antialiased`}
     >
       <body className="bg-ink text-fg flex min-h-full flex-col font-sans">
-        <SiteHeader signedIn={signedIn} />
+        <SiteHeader session={session} />
         <div className="flex flex-1 flex-col">{children}</div>
         <footer className="border-line text-muted-3 border-t px-6 py-7 text-center text-[13px]">
           {LAB_NAME} · {SCHOOL_NAME}

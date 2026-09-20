@@ -25,8 +25,10 @@ export default function LoginPage() {
 
       if (res.ok) {
         // Full navigation so the new cookie is sent with the request for the
-        // availability page, and so the header re-renders as signed in.
-        window.location.replace("/availability");
+        // next page, and so the header re-renders as signed in. Everyone lands
+        // on their own bookings — that is the question a teacher opens this to
+        // answer, and an admin can move on from there.
+        window.location.replace("/my");
         return;
       }
 
@@ -46,11 +48,12 @@ export default function LoginPage() {
           L
         </span>
         <h1 className="font-display m-0 mb-2 text-2xl font-semibold tracking-[-0.02em]">
-          Staff room sign in
+          Teacher sign in
         </h1>
         <p className="text-muted-3 m-0 mb-7 text-[14.5px] leading-[1.55]">
-          One shared login for the staff room. The session lasts twelve hours —
-          one school day.
+          Sign in as yourself — bookings are made in your name, and your own
+          upcoming and past periods are listed for you. The session lasts twelve
+          hours, one school day.
         </p>
 
         <form onSubmit={handleSubmit}>
@@ -108,7 +111,8 @@ export default function LoginPage() {
         </form>
 
         <p className="text-muted-3 mt-5 mb-0 text-[12.5px] leading-[1.5]">
-          Ask the lab in-charge or the staff room noticeboard for the passcode.
+          Your own username and passcode. Ask the lab in-charge if you
+          don&rsquo;t have one yet, or to have yours reset.
         </p>
       </div>
     </main>

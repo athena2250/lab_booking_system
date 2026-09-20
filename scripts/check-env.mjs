@@ -55,8 +55,9 @@ function keysFromEnvExample() {
 }
 
 // Vars the app cannot start without: without these there is no database and
-// no way to log in, so a deploy missing one is broken for everybody, not
-// degraded. These fail the build in every environment.
+// no way to sign in at all — TEACHER_USERNAME/PASSWORD seed the bootstrap
+// account, so a deploy missing them has no way in until someone creates an
+// account by hand. These fail the build in every environment.
 const CRITICAL = new Set([
   "DATABASE_URL",
   "DIRECT_DATABASE_URL",
@@ -69,8 +70,13 @@ const CRITICAL = new Set([
 // blank on Preview is the setup plan/09-deployment.md actively recommends, so
 // that a test booking on a preview URL cannot email the principal — failing
 // the build on it would break the safe configuration.
+// Keys with a working default in code. Absent is a legitimate configuration,
+// so an unset one is not worth even a warning.
+const OPTIONAL = new Set(["TEACHER_NAME"]);
+
 function severityFor(key) {
   if (CRITICAL.has(key)) return "error";
+  if (OPTIONAL.has(key)) return "optional";
   return isProduction ? "error" : "warn";
 }
 
@@ -162,6 +168,8 @@ for (const key of keysFromEnvExample()) {
 
   if (!value) {
     const level = severityFor(key);
+    // An unset optional key is the documented default, not a finding.
+    if (level === "optional") continue;
     const note =
       level === "warn"
         ? `${key} is not set (fine here; required in production)`

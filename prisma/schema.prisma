@@ -9,6 +9,15 @@ generator client {
   output   = "../app/generated/prisma"
 }
 
+// A second, plain-JavaScript client for `scripts/`. The client above is
+// TypeScript with extensionless imports — Next bundles it happily, but a plain
+// `node scripts/*.mjs` cannot resolve it. This one lands in node_modules/.prisma
+// and is reachable as `@prisma/client`, which is already a dependency, so the
+// account CLI needs no build step and no new package.
+generator scriptClient {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql"
   // Pooled connection — every request handler goes through this. On Neon that
@@ -24,10 +33,41 @@ model Booking {
   id           String   @id @default(cuid())
   date         DateTime
   period       Int
+  // Who booked it. Nullable because bookings made under the old shared login
+  // have no account to point at, and because retiring a teacher must not erase
+  // the record of a lab period that actually happened.
+  teacherId    String?
+  teacher      Teacher? @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+  // The name as it was at booking time. Kept alongside `teacherId` because the
+  // notification templates and every historical row read this, and a later
+  // rename shouldn't rewrite what the principal was already emailed.
   teacherName  String
   classSubject String
   purpose      String?
   createdAt    DateTime @default(now())
 
   @@unique([date, period])
+  // Every teacher-facing query is "my bookings, newest first".
+  @@index([teacherId, date])
+}
+
+enum Role {
+  TEACHER
+  ADMIN
+}
+
+/// One staff account. Replaces the single shared staff-room login: a teacher
+/// signs in as themselves, so "my bookings" has something to filter on and the
+/// admin view has something to authorise against.
+model Teacher {
+  id           String    @id @default(cuid())
+  name         String
+  username     String    @unique
+  passwordHash String
+  role         Role      @default(TEACHER)
+  // Staff leave. Deleting the row would take their bookings' history with it,
+  // so an account is retired by flipping this instead.
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  bookings     Booking[]
 }

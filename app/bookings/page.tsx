@@ -2,6 +2,9 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { formatDateShort } from "@/lib/slots";
 
+// Admin only — `ADMIN_ONLY` in `proxy.ts` bounces teachers to `/my`, which is
+// the same list narrowed to their own bookings.
+
 // The point of this page is to show what has actually been claimed, so it must
 // never be served from a cache built before the last booking.
 export const dynamic = "force-dynamic";
@@ -27,7 +30,7 @@ export default async function BookingsPage() {
         All bookings
       </h1>
       <p className="text-muted-3 m-0 mb-[26px] text-[14.5px]">
-        Everything the staff room has claimed, newest first.
+        Every teacher&rsquo;s bookings, newest first.
       </p>
 
       {bookings.length === 0 ? (

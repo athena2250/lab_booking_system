@@ -47,6 +47,11 @@ const DECISIONS = [
   },
   {
     num: "04",
+    title: "Each teacher signs in as themselves",
+    body: "A booking is attributed to the account that made it, never to a name typed into the form, so every teacher gets their own upcoming and past lab periods. Admin accounts additionally see the whole school's.",
+  },
+  {
+    num: "05",
     title: "Kannada labels only, values verbatim",
     body: "Fixed templates rather than a translation API. Unproofread free text is never machine-translated.",
   },
@@ -138,9 +143,10 @@ export default function Home() {
               Deliberately the same shape as the form
             </h2>
             <p className="text-muted-2 m-0 text-base leading-[1.65] text-pretty">
-              One lab. Periods 1–8, no clock times. One shared staff-room login
-              rather than per-teacher accounts. Teachers should recognise the
-              thing they already fill in, minus the guessing.
+              One lab. Periods 1–8, no clock times. Teachers should recognise
+              the thing they already fill in, minus the guessing — the only
+              field the form asks for that the Google Form didn&rsquo;t is
+              nothing at all, because the name comes from who signed in.
             </p>
           </div>
           <dl className="m-0 flex flex-col">

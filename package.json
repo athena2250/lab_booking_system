@@ -7,6 +7,8 @@
     "build": "node scripts/check-env.mjs && prisma generate && prisma migrate deploy && next build",
     "start": "next start",
     "lint": "eslint",
+    "teachers": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/teachers.mjs",
+    "teachers:bootstrap": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/teachers.mjs bootstrap",
     "check:services": "node scripts/check-services.mjs",
     "verify": "node scripts/verify.mjs",
     "check:env": "node scripts/check-env.mjs"

@@ -469,9 +469,12 @@ async function sectionC(base, cookie, hasDb) {
     );
     const slot = after.slots.find((s) => s.period === 3);
     expect(slot.booked === true, "Period 3 did not flip to booked");
+    // The name comes from the signed-in account, not from the request body, so
+    // what matters is that availability reports the same name the booking did.
+    // Who that is, is C4's business.
     expect(
-      slot.bookedBy === "Verification Script",
-      `booked-by read "${slot.bookedBy}"`,
+      slot.bookedBy === body.booking.teacherName,
+      `booked-by read "${slot.bookedBy}", but the booking said "${body.booking.teacherName}"`,
     );
     return `201, Period 3 now "booked by ${slot.bookedBy}"`;
   });
@@ -517,34 +520,67 @@ async function sectionC(base, cookie, hasDb) {
     return `1 row, date = ${stamp} UTC, reads back on ${D.booking}`;
   });
 
-  await check("C4", "A blank teacher name is rejected with 400", async () => {
-    for (const teacherName of ["", "   ", null, undefined]) {
-      const res = await postBooking(
+  await check(
+    "C4",
+    "A booking is attributed to the signed-in teacher, not the request body",
+    async () => {
+      // Teachers sign in as themselves, so the name on a booking comes from the
+      // session. A name in the body is ignored — this is what stops one teacher
+      // booking in another's name by editing the payload.
+      const spoofed = await postBooking(
         base,
         cookie,
-        bookingBody(D.booking, 4, { teacherName }),
+        bookingBody(D.booking, 4, { teacherName: "Someone Else" }),
       );
-      expectStatus(res, 400, `teacherName=${JSON.stringify(teacherName)}`);
-      const body = await res.json();
+      expectStatus(spoofed, 201, "spoofed teacherName");
+      const claimed = (await spoofed.json()).booking?.teacherName;
       expect(
-        typeof body.error === "string" && body.error.length > 0,
-        "400 carried no message",
+        typeof claimed === "string" && claimed.length > 0,
+        "the booking came back with no teacher name",
       );
       expect(
-        !looksLikeStackTrace(body.error),
-        `400 leaked internals: ${body.error}`,
+        claimed !== "Someone Else",
+        `the body's teacherName was stored — got "${claimed}"`,
       );
-    }
-    // And the rejected slot must still be free afterwards.
-    const { slots } = await getAvailability(base, cookie, D.booking).then((r) =>
-      r.json(),
-    );
-    expect(
-      slots.find((s) => s.period === 4)?.booked === false,
-      "a rejected booking still consumed the slot",
-    );
-    return '400 "Teacher name is required", slot left free';
-  });
+
+      // Omitting it entirely is not a validation error either, for the same
+      // reason: the field is not an input any more.
+      for (const teacherName of ["", "   ", null, undefined]) {
+        const res = await postBooking(
+          base,
+          cookie,
+          bookingBody(D.other, 4, { teacherName }),
+        );
+        // Only the first of these can win the slot; the rest must lose it to the
+        // unique constraint, never to a complaint about the name.
+        expect(
+          res.status === 201 || res.status === 409,
+          `teacherName=${JSON.stringify(teacherName)} gave ${res.status}`,
+        );
+        const body = await res.json();
+        if (res.status === 201) {
+          expect(
+            body.booking?.teacherName === claimed,
+            `attributed to "${body.booking?.teacherName}", not "${claimed}"`,
+          );
+        }
+        expect(
+          !looksLikeStackTrace(body.error ?? ""),
+          `response leaked internals: ${body.error}`,
+        );
+      }
+
+      // And the name the API reported is the name the availability list shows.
+      const { slots } = await getAvailability(base, cookie, D.booking).then(
+        (r) => r.json(),
+      );
+      expect(
+        slots.find((s) => s.period === 4)?.bookedBy === claimed,
+        "availability shows a different name than the booking did",
+      );
+      return `attributed to "${claimed}" from the session, body ignored`;
+    },
+  );
 
   await check("C5", "A double-click creates one booking", async () => {
     const body = bookingBody(D.doubleClick, 2);
@@ -1088,7 +1124,13 @@ async function main() {
   const run = async (ctx) => {
     await sectionA(ctx.base);
     const { cookie } = await login(ctx.base);
-    expect(cookie, "could not sign in — check TEACHER_USERNAME / TEACHER_PASSWORD");
+    // Sign-in is against the Teacher table now, not the env vars directly: the
+    // env pair only seeds the bootstrap account, so a fresh database needs
+    // `npm run teachers:bootstrap` before this can pass.
+    expect(
+      cookie,
+      "could not sign in — check TEACHER_USERNAME / TEACHER_PASSWORD and run `npm run teachers:bootstrap`",
+    );
     await sectionB(ctx.base, cookie);
     await sectionC(ctx.base, cookie, hasDb);
     await sectionD(ctx.base, hasDb);

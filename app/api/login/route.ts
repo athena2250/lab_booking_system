@@ -3,9 +3,9 @@ import {
   COOKIE_NAME,
   SESSION_COOKIE_OPTIONS,
   SESSION_TTL_MS,
-  checkCredentials,
   createSessionToken,
 } from "@/lib/auth";
+import { authenticate } from "@/lib/teachers";
 
 // In-memory attempt counter. Resets on redeploy and isn't shared between
 // serverless instances — good enough to blunt a script on a school LAN,
@@ -58,8 +58,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
-  if (!checkCredentials(username, password)) {
+  const account = await authenticate(username, password);
+  if (!account) {
     recordFailure(ip);
+    // Deliberately one message for a wrong passcode, an unknown username and a
+    // retired account: which of the three it was is not the sign-in form's
+    // business to disclose.
     return NextResponse.json(
       { error: "Incorrect username or password." },
       { status: 401 },
@@ -68,10 +72,11 @@ export async function POST(req: NextRequest) {
 
   failures.delete(ip);
 
-  const response = NextResponse.json({ ok: true });
+  // The role travels back so the login form knows where to land the person.
+  const response = NextResponse.json({ ok: true, role: account.role });
   response.cookies.set({
     name: COOKIE_NAME,
-    value: await createSessionToken(),
+    value: await createSessionToken(account),
     ...SESSION_COOKIE_OPTIONS,
     maxAge: SESSION_TTL_MS / 1000,
   });

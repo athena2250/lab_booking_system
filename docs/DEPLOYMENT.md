@@ -83,8 +83,8 @@ Environment Variables for **Production**:
 
 - [ ] `DATABASE_URL` (pooled)
 - [ ] `DIRECT_DATABASE_URL` (unpooled)
-- [ ] `TEACHER_USERNAME`
-- [ ] `TEACHER_PASSWORD`
+- [ ] `TEACHER_USERNAME` — username of the bootstrap admin account
+- [ ] `TEACHER_PASSWORD` — its passcode
 - [ ] `SESSION_SECRET` — generate a fresh one for production: `openssl rand -base64 32`
 - [ ] `GMAIL_USER`
 - [ ] `GMAIL_APP_PASSWORD`
@@ -93,6 +93,10 @@ Environment Variables for **Production**:
 - [ ] `TWILIO_AUTH_TOKEN`
 - [ ] `TWILIO_WHATSAPP_FROM` — keeps the literal `whatsapp:` prefix
 - [ ] `TWILIO_WHATSAPP_TO`
+
+`TEACHER_NAME` is optional (defaults to `Staff Room`) and is the display name
+the bootstrap account books under. These three seed **one** account; every
+other teacher is created after the deploy with `npm run teachers -- add` (§4a).
 
 Do not reuse the development `SESSION_SECRET`: it signs login cookies, and a
 leaked dev value would let anyone mint a valid session.
@@ -158,12 +162,39 @@ node scripts/check-env.mjs && prisma generate && prisma migrate deploy && next b
   A failed migration fails the deploy, which is the behaviour you want.
 - `next build` — the app itself.
 
+## 4a. Create the staff accounts
+
+Teachers sign in as themselves, so a freshly migrated database has no way in
+until at least one account exists. Point the CLI at the production database and
+seed the bootstrap admin:
+
+```bash
+vercel env pull .env.production.local
+node --env-file=.env.production.local scripts/teachers.mjs bootstrap
+```
+
+Then add the real teachers. Each `add` prints a generated passcode **once** —
+hand it over in person; a lost one is reset, never recovered:
+
+```bash
+node --env-file=.env.production.local scripts/teachers.mjs add "Asha Rao" asha
+node --env-file=.env.production.local scripts/teachers.mjs add "R Menon" menon --admin
+node --env-file=.env.production.local scripts/teachers.mjs list
+```
+
+`passwd` resets a passcode, `role` promotes or demotes, and `retire` stops an
+account signing in while keeping the bookings it made attributed to its name.
+Locally the same commands are `npm run teachers -- <command>`.
+
 ## 5. Post-deploy checks
 
 Run these against the real URL, once:
 
 - [ ] `/login` loads; visiting `/book` while logged out redirects there
 - [ ] Logging in with the production `TEACHER_USERNAME` / `TEACHER_PASSWORD` works
+- [ ] A teacher account created with `teachers.mjs add` can sign in, and `/my`
+      lists that teacher's bookings and nobody else's
+- [ ] A teacher account is bounced off `/bookings` to `/my`; an admin is not
 - [ ] A real booking round-trips and shows up in the Neon database
 - [ ] Both emails arrive, and the WhatsApp message reaches the lab in-charge
 - [ ] The double-booking guard still holds: book the same date and period twice,

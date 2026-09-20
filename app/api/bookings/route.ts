@@ -1,26 +1,42 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { Prisma } from "@/app/generated/prisma/client";
 import { prisma } from "@/lib/db";
-import { parseDateOnly, isValidPeriod } from "@/lib/slots";
+import { parseDateOnly, isValidPeriod, isPastPeriod } from "@/lib/slots";
 import { notifyBooking } from "@/lib/notify";
+import { getSession } from "@/lib/session";
+import { currentAccount } from "@/lib/teachers";
 
 // Authentication is enforced by the matcher in `proxy.ts`, which returns 401
-// for /api/* before this handler runs.
+// for /api/* before this handler runs. The account is still re-read below: the
+// booking is attributed to it, and a signed cookie outlives a retired account.
 
 // Postgres `text` has no length limit, and these strings go straight into an
 // SMS-length-sensitive WhatsApp message.
-const MAX_NAME = 200;
 const MAX_SUBJECT = 200;
 const MAX_PURPOSE = 1000;
 
 export async function POST(req: NextRequest) {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+  // Who the booking belongs to is never taken from the request body — a teacher
+  // cannot book in someone else's name by editing the payload.
+  const account = await currentAccount(session.teacherId);
+  if (!account) {
+    return NextResponse.json(
+      { error: "This account is no longer active. Ask the lab in-charge." },
+      { status: 403 },
+    );
+  }
+
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object") {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
   const date = parseDateOnly(body.date);
-  const teacherName = String(body.teacherName ?? "").trim();
+  const teacherName = account.name;
   const classSubject = String(body.classSubject ?? "").trim();
   const purpose = String(body.purpose ?? "").trim() || null;
 
@@ -30,15 +46,12 @@ export async function POST(req: NextRequest) {
   if (!isValidPeriod(body.period)) {
     return NextResponse.json({ error: "Period must be 1-8" }, { status: 400 });
   }
-  if (!teacherName) {
+  // The calendar and the period list already hide these, but a tab left open
+  // across the end bell — or a direct call — must not be able to claim a slot
+  // that has already gone. `body.date` is the validated date-only string.
+  if (isPastPeriod(String(body.date), body.period)) {
     return NextResponse.json(
-      { error: "Teacher name is required" },
-      { status: 400 },
-    );
-  }
-  if (teacherName.length > MAX_NAME) {
-    return NextResponse.json(
-      { error: `Teacher name must be ${MAX_NAME} characters or fewer` },
+      { error: "That period is in the past and can no longer be booked." },
       { status: 400 },
     );
   }
@@ -67,7 +80,14 @@ export async function POST(req: NextRequest) {
     // A pre-check `findFirst` would only narrow the race window, never close
     // it, while adding a query — do not "improve" this by adding one.
     booking = await prisma.booking.create({
-      data: { date, period: body.period, teacherName, classSubject, purpose },
+      data: {
+        date,
+        period: body.period,
+        teacherId: account.id,
+        teacherName,
+        classSubject,
+        purpose,
+      },
     });
   } catch (error) {
     if (
