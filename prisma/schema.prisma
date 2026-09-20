@@ -46,9 +46,31 @@ model Booking {
   purpose      String?
   createdAt    DateTime @default(now())
 
+  // Notification delivery, written once the sends have settled. `notifiedAt`
+  // stays null until then, and that is how the admin screens tell "never
+  // recorded" apart from "recorded as failed": a booking made before delivery
+  // was tracked, or one whose function was frozen mid-send, can only ever be
+  // the former, and showing it as a success would be a lie the principal pays
+  // for. The errors are kept verbatim (truncated) because the useful ones are
+  // Gmail and Twilio's own wording.
+  notifiedAt     DateTime?
+  emailStatus    DeliveryStatus @default(PENDING)
+  emailError     String?
+  whatsappStatus DeliveryStatus @default(PENDING)
+  whatsappError  String?
+
   @@unique([date, period])
   // Every teacher-facing query is "my bookings, newest first".
   @@index([teacherId, date])
+}
+
+/// One notification channel's outcome for one booking. PENDING is the column
+/// default, so anything that never reached `recordNotifyResult` reads as
+/// unsent rather than sent.
+enum DeliveryStatus {
+  PENDING
+  SENT
+  FAILED
 }
 
 enum Role {

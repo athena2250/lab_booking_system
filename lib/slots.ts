@@ -130,3 +130,28 @@ export function isPastPeriod(
   if (date > now.date) return false;
   return now.minutes >= PERIOD_TIMES[period].end;
 }
+
+/** Monday–Friday of the school week containing `from`, as date-only strings.
+ *  The lab runs a five-day week, so a weekend visit rolls forward to the week
+ *  ahead rather than showing a grid of days nobody can book. */
+export function schoolWeek(from: string = nowInSchoolTz().date): string[] {
+  const start = parseDateOnly(from);
+  if (!start) return [];
+  const day = start.getUTCDay(); // 0 = Sunday
+  // Sunday is +1 to tomorrow, Saturday +2; a weekday steps back to its Monday.
+  const toMonday = day === 0 ? 1 : day === 6 ? 2 : 1 - day;
+  const monday = new Date(start.getTime() + toMonday * 86_400_000);
+  return Array.from({ length: 5 }, (_, i) =>
+    new Date(monday.getTime() + i * 86_400_000).toISOString().slice(0, 10),
+  );
+}
+
+/** "Mon" — the weekday label for a date-only string, for dense grids. */
+export function formatWeekdayShort(input: string): string {
+  const date = parseDateOnly(input);
+  if (!date) return input;
+  return new Intl.DateTimeFormat("en-IN", {
+    weekday: "short",
+    timeZone: "UTC",
+  }).format(date);
+}

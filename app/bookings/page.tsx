@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { formatDateShort } from "@/lib/slots";
+import { CancelBooking } from "./cancel-booking";
 
 // Admin only — `ADMIN_ONLY` in `proxy.ts` bounces teachers to `/my`, which is
 // the same list narrowed to their own bookings.
@@ -9,7 +10,8 @@ import { formatDateShort } from "@/lib/slots";
 // never be served from a cache built before the last booking.
 export const dynamic = "force-dynamic";
 
-const COLUMNS = "grid grid-cols-[1.1fr_0.6fr_1fr_1.3fr] gap-4 px-5";
+const COLUMNS =
+  "grid grid-cols-[1.1fr_0.6fr_1fr_1.3fr_auto] gap-4 px-5";
 
 export default async function BookingsPage() {
   const bookings = await prisma.booking.findMany({
@@ -30,7 +32,8 @@ export default async function BookingsPage() {
         All bookings
       </h1>
       <p className="text-muted-3 m-0 mb-[26px] text-[14.5px]">
-        Every teacher&rsquo;s bookings, newest first.
+        Every teacher&rsquo;s bookings, newest first. Cancelling one frees the
+        period for somebody else to claim.
       </p>
 
       {bookings.length === 0 ? (
@@ -55,6 +58,7 @@ export default async function BookingsPage() {
               <span>Period</span>
               <span>Teacher</span>
               <span>Class &amp; purpose</span>
+              <span className="text-right">Cancel</span>
             </div>
             {bookings.map((b) => (
               <div
@@ -68,6 +72,12 @@ export default async function BookingsPage() {
                 <span className="font-medium">{b.teacherName}</span>
                 <span className="text-muted-3">
                   {[b.classSubject, b.purpose].filter(Boolean).join(" — ")}
+                </span>
+                <span className="flex justify-end">
+                  <CancelBooking
+                    id={b.id}
+                    label={`${b.teacherName}, P${b.period} on ${formatDateShort(b.date)}`}
+                  />
                 </span>
               </div>
             ))}

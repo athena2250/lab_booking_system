@@ -48,7 +48,7 @@ Next.js 16.3.5 (App Router) · React 19 · TypeScript · Tailwind v4 · Prisma 6
 
 **The database prevents double-booking, not the application.** `@@unique([date, period])` is the guarantee; check-then-insert is a race and must not be used.
 
-**Notifications never fail a booking.** `notifyBooking()` catches its own errors. A committed booking is valid whether or not the messages went out.
+**Notifications never fail a booking.** `notifyBooking()` catches its own errors. A committed booking is valid whether or not the messages went out. `notifyAndRecord()` then writes the outcome to the booking row, which is what `/admin` reads back — `notifiedAt` stays null if that write never happened, and the admin day view shows that as "not recorded" rather than as a success.
 
 **Import Prisma from `@/app/generated/prisma/client`** — this generator emits no `index.ts`.
 
@@ -58,4 +58,4 @@ Next.js 16.3.5 (App Router) · React 19 · TypeScript · Tailwind v4 · Prisma 6
 
 - **Production database** — the app currently points at local Postgres, which Vercel cannot reach. See [Step 9](plan/09-deployment.md).
 - **Kannada wording needs a native-speaker review** before go-live, and before any WhatsApp template is submitted to Meta for approval. See [Step 7](plan/07-notifications.md).
-- **No cancel/edit and no week view** in v1. Both are likely first requests; see the end of [Step 9](plan/09-deployment.md).
+- **No teacher-facing cancel/edit.** An admin can cancel a booking from `/bookings`, which frees the period; a teacher still cannot undo their own. Editing is still unbuilt, and cancelling sends no notification — the three recipients keep the original message. See the end of [Step 9](plan/09-deployment.md).

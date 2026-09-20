@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { Prisma } from "@/app/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { parseDateOnly, isValidPeriod, isPastPeriod } from "@/lib/slots";
-import { notifyBooking } from "@/lib/notify";
+import { notifyAndRecord } from "@/lib/notify";
 import { getSession } from "@/lib/session";
 import { currentAccount } from "@/lib/teachers";
 
@@ -104,10 +104,11 @@ export async function POST(req: NextRequest) {
 
   // The booking is committed the moment `create` returns, so a notification
   // failure must never turn into an error response — the teacher would rebook
-  // and hit a 409 on their own booking. `notifyBooking` never throws; we await
+  // and hit a 409 on their own booking. `notifyAndRecord` never throws; we await
   // it because a serverless function can be frozen the instant it responds,
-  // and report the outcome so the UI can tell the teacher the truth.
-  const notification = await notifyBooking(booking);
+  // and report the outcome so the UI can tell the teacher the truth. The same
+  // call records the outcome on the row, which is what `/admin` reads back.
+  const notification = await notifyAndRecord(booking);
   const notified = notification.email.ok && notification.whatsapp.ok;
 
   return NextResponse.json({ booking, notified }, { status: 201 });

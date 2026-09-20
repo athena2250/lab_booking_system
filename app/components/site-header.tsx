@@ -15,7 +15,10 @@ const TEACHER_LINKS = [
   { href: "/my", label: "My bookings" },
 ] as const;
 
-const ADMIN_LINKS = [{ href: "/bookings", label: "All bookings" }] as const;
+const ADMIN_LINKS = [
+  { href: "/admin", label: "Admin" },
+  { href: "/bookings", label: "All bookings" },
+] as const;
 
 export function SiteHeader({ session }: { session: Session | null }) {
   const pathname = usePathname();

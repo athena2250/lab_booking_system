@@ -1,6 +1,10 @@
 import nodemailer from "nodemailer";
 import twilio from "twilio";
-import type { Booking } from "@/app/generated/prisma/client";
+import type {
+  Booking,
+  DeliveryStatus,
+} from "@/app/generated/prisma/client";
+import { prisma } from "@/lib/db";
 import { bilingualMessage, emailSubject, englishMessage } from "@/lib/messages";
 
 export type NotifyChannelResult = { ok: boolean; error?: string };
@@ -92,4 +96,46 @@ export async function notifyBooking(booking: Booking): Promise<NotifyResult> {
     settle("WhatsApp", booking, sendWhatsApp(booking)),
   ]);
   return { email, whatsapp };
+}
+
+// Errors are stored so an admin can see *why* a message didn't arrive, but a
+// stack trace from a library is unbounded and the useful part is at the front.
+const MAX_ERROR = 500;
+
+function truncate(error: string | undefined): string | null {
+  if (!error) return null;
+  return error.length > MAX_ERROR ? `${error.slice(0, MAX_ERROR)}…` : error;
+}
+
+function statusOf(result: NotifyChannelResult): DeliveryStatus {
+  return result.ok ? "SENT" : "FAILED";
+}
+
+/**
+ * Sends, then records what happened on the booking row.
+ *
+ * Like `notifyBooking`, this never rejects. The booking is already committed by
+ * the time it runs, so a database hiccup while writing the *receipt* must not
+ * become an error the teacher sees — it just leaves `notifiedAt` null, which
+ * the admin screens read as "not recorded" rather than as a success.
+ */
+export async function notifyAndRecord(booking: Booking): Promise<NotifyResult> {
+  const result = await notifyBooking(booking);
+
+  try {
+    await prisma.booking.update({
+      where: { id: booking.id },
+      data: {
+        notifiedAt: new Date(),
+        emailStatus: statusOf(result.email),
+        emailError: truncate(result.email.error),
+        whatsappStatus: statusOf(result.whatsapp),
+        whatsappError: truncate(result.whatsapp.error),
+      },
+    });
+  } catch (error) {
+    console.error(`Booking ${booking.id} delivery receipt failed`, error);
+  }
+
+  return result;
 }

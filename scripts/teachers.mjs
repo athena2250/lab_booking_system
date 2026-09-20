@@ -12,6 +12,10 @@
  * With no --password a readable passcode is generated and printed once. It is
  * stored only as a scrypt hash, so a lost passcode is reset, never recovered.
  *
+ * The passcode alphabet and the username rules live in `lib/accounts.ts`, which
+ * the admin screens import too — the two ways of creating an account have to
+ * agree about what a valid one looks like.
+ *
  * `@prisma/client` here, not app/generated/prisma: the generated client is
  * TypeScript with extensionless imports, which Next bundles and plain Node
  * cannot resolve. `prisma generate` emits both — see the second generator block
@@ -19,9 +23,13 @@
  * lib so the CLI and the login route can never disagree about the format.
  */
 import "dotenv/config";
-import { randomInt } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../lib/password.ts";
+import {
+  USERNAME_RULE,
+  generatePassword,
+  normaliseUsername as parseUsername,
+} from "../lib/accounts.ts";
 
 const prisma = new PrismaClient();
 
@@ -36,28 +44,9 @@ for (let i = 0; i < argv.length; i += 1) {
   else positional.push(arg);
 }
 
-// No l/I/1/O/0 — these get read off a slip of paper and typed on a phone.
-const ALPHABET = "abcdefghjkmnpqrstuvwxyzACDEFGHJKLMNPQRSTUVWXYZ23456789";
-
-function generatePassword(length = 12) {
-  return Array.from(
-    { length },
-    () => ALPHABET[randomInt(ALPHABET.length)],
-  ).join("");
-}
-
 function normaliseUsername(value) {
-  const username = String(value ?? "")
-    .trim()
-    .toLowerCase();
-  // The login route lowercases and trims what it is given, so anything that
-  // wouldn't survive that round trip must be refused here rather than stored as
-  // an account nobody can sign in to.
-  if (!/^[a-z0-9._-]{3,40}$/.test(username)) {
-    fail(
-      "Username must be 3-40 characters, lowercase letters, digits, dot, dash or underscore.",
-    );
-  }
+  const username = parseUsername(value);
+  if (!username) fail(USERNAME_RULE);
   return username;
 }
 

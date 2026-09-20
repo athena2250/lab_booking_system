@@ -61,10 +61,15 @@ export function MonthCalendar({
   value,
   onChange,
   labelledBy,
+  allowPast = false,
 }: {
   value: string;
   onChange: (date: string) => void;
   labelledBy?: string;
+  /** Booking screens can only look forward, so past days are dead and stay
+   *  disabled. The admin day view is the opposite: "did the notifications go
+   *  out?" is nearly always a question about a day that has already happened. */
+  allowPast?: boolean;
 }) {
   const now = useSchoolClock();
   const [month, setMonth] = useState(() => monthOf(value));
@@ -80,8 +85,9 @@ export function MonthCalendar({
   }
 
   const currentMonth = monthOf(now.date);
-  // Nothing before today is bookable, so there is nowhere to go back to.
-  const canGoBack = month > currentMonth;
+  // Nothing before today is bookable, so there is nowhere to go back to —
+  // unless the caller is looking at history rather than claiming a slot.
+  const canGoBack = allowPast || month > currentMonth;
 
   return (
     <div
@@ -127,7 +133,7 @@ export function MonthCalendar({
         {monthGrid(month).map((date, i) => {
           if (!date) return <span key={`pad-${i}`} aria-hidden="true" />;
 
-          const isPast = date < now.date;
+          const isPast = !allowPast && date < now.date;
           const isToday = date === now.date;
           const isSelected = date === value;
 
